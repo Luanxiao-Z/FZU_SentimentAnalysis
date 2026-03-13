@@ -8,7 +8,13 @@ import pandas as pd
 import plotly.express as px
 from pathlib import Path
 from src.config import EMOTION_STYLES
-from src.utils import load_csv_with_encoding, validate_dataframe, format_batch_results
+from src.utils import (
+    load_csv_with_encoding,
+    load_excel_with_encoding,
+    validate_dataframe,
+    format_batch_results,
+    process_document_to_sentences
+)
 
 
 def render_page(handler):
@@ -29,7 +35,7 @@ def render_page(handler):
 def render_upload_interface(handler):
     """渲染上传界面"""
     st.markdown('<div class="batch-page-wrap">', unsafe_allow_html=True)
-    st.markdown("<div class='batch-subtitle'>上传包含 text 列的 CSV 文件，预览确认后点击开始批量分析。</div>", unsafe_allow_html=True)
+    st.markdown("<div class='batch-subtitle'>上传文件（支持 CSV、Excel、PDF、TXT、DOCX、MD 格式），预览确认后点击开始批量分析。</div>", unsafe_allow_html=True)
 
     # 使用可变 key 来重置上传控件
     if "batch_upload_nonce" not in st.session_state:
@@ -39,8 +45,8 @@ def render_upload_interface(handler):
     with st.container(border=True):
         st.markdown('<div class="batch-uploader-wrap">', unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
-            "上传 CSV 文件",
-            type=["csv"],
+            "上传文件",
+            type=["csv", "xlsx", "pdf", "txt", "docx", "md"],
             label_visibility="collapsed",
             key=upload_key,
         )
@@ -61,8 +67,54 @@ def render_upload_interface(handler):
         st.markdown('</div>', unsafe_allow_html=True)
 
         df = None
+        file_type_info = None
+        
         if uploaded_file:
-            df, last_error = load_csv_with_encoding(uploaded_file)
+            file_name = uploaded_file.name.lower()
+            
+            # 判断文件类型
+            if file_name.endswith('.csv'):
+                df, last_error = load_csv_with_encoding(uploaded_file)
+                file_type_info = 'CSV'
+            elif file_name.endswith('.xlsx'):
+                result = load_excel_with_encoding(uploaded_file)
+                if isinstance(result, tuple):
+                    df, last_error = result
+                else:
+                    df = result
+                    last_error = None
+                file_type_info = 'Excel'
+            elif file_name.endswith('.pdf'):
+                try:
+                    df = process_document_to_sentences(uploaded_file, 'pdf')
+                    file_type_info = 'PDF'
+                except Exception as e:
+                    df = None
+                    last_error = str(e)
+            elif file_name.endswith('.txt'):
+                try:
+                    df = process_document_to_sentences(uploaded_file, 'txt')
+                    file_type_info = 'TXT'
+                except Exception as e:
+                    df = None
+                    last_error = str(e)
+            elif file_name.endswith('.docx'):
+                try:
+                    df = process_document_to_sentences(uploaded_file, 'docx')
+                    file_type_info = 'DOCX'
+                except Exception as e:
+                    df = None
+                    last_error = str(e)
+            elif file_name.endswith('.md'):
+                try:
+                    df = process_document_to_sentences(uploaded_file, 'md')
+                    file_type_info = 'Markdown'
+                except Exception as e:
+                    df = None
+                    last_error = str(e)
+            else:
+                df = None
+                last_error = "不支持的文件格式"
 
             if df is None and last_error is not None:
                 st.markdown(
@@ -76,8 +128,7 @@ def render_upload_interface(handler):
                         font-size: 0.9rem;
                         font-weight: 650;
                     ">
-                        无法读取 CSV 文件，请确认编码为 UTF-8 / UTF-8-SIG / GBK / GB2312 / BIG5 / CP936 / LATIN1 等常见编码之一。
-                        错误信息：{last_error}
+                        无法读取文件：{last_error}
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -96,7 +147,10 @@ def render_upload_interface(handler):
         # 文本预览区域
         st.markdown("<div class='batch-block-title'>文本预览</div>", unsafe_allow_html=True)
         if df is not None:
-            st.markdown(f"<div class='batch-block-meta'>共读取 {len(df)} 条数据（展示前 50 条）</div>", unsafe_allow_html=True)
+            file_info_text = f"共读取 {len(df)} 条数据"
+            if file_type_info:
+                file_info_text += f" （从 {file_type_info} 文件提取）"
+            st.markdown(f"<div class='batch-block-meta'>{file_info_text}（展示前 50 条）</div>", unsafe_allow_html=True)
             preview_samples = df["text"].astype(str).head(50).tolist()
             preview_text = "\n\n".join(preview_samples)
         else:
@@ -135,7 +189,7 @@ def render_upload_interface(handler):
                     font-size: 0.9rem;
                     font-weight: 650;
                 ">
-                    请先上传包含 text 列的 CSV 文件后再开始批量分析。
+                    请先上传文件后再开始批量分析。
                 </div>
                 """,
                 unsafe_allow_html=True,

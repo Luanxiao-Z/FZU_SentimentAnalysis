@@ -473,7 +473,7 @@ div[data-testid^="stFileUploader"] * {
 div[data-testid="stFileUploaderDropzone"]::before,
 div[data-testid="stFileUploader"]::before,
 div[data-testid^="stFileUploader"]::before {
-    content: "☁\A拖拽或点击上传CSV\A需包含'text'列";
+    content: "☁\A拖拽或点击上传文件";
     white-space: pre-line;
     position: absolute;
     inset: 0;
