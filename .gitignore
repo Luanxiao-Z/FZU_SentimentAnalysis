@@ -1,2 +1,2 @@
 .idea/
-emotion_model/
+models/emotion_model/*
