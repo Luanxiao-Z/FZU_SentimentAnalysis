@@ -27,570 +27,6 @@ st.set_page_config(
 _css_path = Path(__file__).with_name("app_emotion.css")
 st.markdown(f"<style>{_css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
-# （以下为旧内嵌 CSS 备份，不再使用）
-_OLD_INLINE_CSS = """
-
-    /* Streamlit bordered containers -> card look
-       仅对内部带有特定标记元素的容器生效，避免出现多余整行白色长条 */
-    section.main div[data-testid="stContainer"]:has(.input-card-marker),
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.input-card-marker),
-    section.main div[data-testid="stContainer"]:has(.result-card-marker),
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.result-card-marker),
-    section.main div[data-testid="stContainer"]:has(.batch-uploader-wrap),
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.batch-uploader-wrap) {
-        background: #ffffff;
-        border: 1.5px solid #d0d5dd !important;
-        border-radius: 16px !important;
-        box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
-        overflow: hidden;
-    }
-    /* 只给“卡片容器”加统一内边距，避免影响其他容器导致错位 */
-    section.main div[data-testid="stContainer"]:has(.input-card-marker) > div,
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.input-card-marker) > div,
-    section.main div[data-testid="stContainer"]:has(.result-card-marker) > div,
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.result-card-marker) > div,
-    section.main div[data-testid="stContainer"]:has(.batch-uploader-wrap) > div,
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.batch-uploader-wrap) > div {
-        padding: 22px 22px !important;
-    }
-
-    /* Equal-height for the two top cards (input + result) */
-    section.main div[data-testid="stContainer"]:has(.input-card-marker),
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.input-card-marker),
-    section.main div[data-testid="stContainer"]:has(.result-card-marker),
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.result-card-marker) {
-        height: 360px;
-        display: flex;
-        flex-direction: column;
-    }
-    /* 让两张卡片内部内容从顶部开始排布，避免看起来上下不齐 */
-    section.main div[data-testid="stContainer"]:has(.input-card-marker) > div,
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.input-card-marker) > div,
-    section.main div[data-testid="stContainer"]:has(.result-card-marker) > div,
-    section.main div[data-testid="stVerticalBlockBorderWrapper"]:has(.result-card-marker) > div {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-    }
-
-    /* ----- sidebar ----- */
-    /* Streamlit sidebar content container */
-    section[data-testid="stSidebar"] div[data-testid="stSidebarContent"] {
-        display: flex;
-        flex-direction: column;
-        height: 100vh;
-        padding-bottom: 72px; /* reserve room for fixed footer */
-    }
-    .sidebar-inner {
-        width: min(260px, 92%);
-        margin: 0 auto;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-    }
-    .sidebar-brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 14px 6px 6px 6px;
-        margin-bottom: 14px;
-        justify-content: center;
-        width: 100%;
-    }
-    .sidebar-brand .logo {
-        width: 34px;
-        height: 34px;
-        border-radius: 10px;
-        background: transparent;
-        box-shadow: none;
-        display: grid;
-        place-items: center;
-        color: #16a34a;
-    }
-    .sidebar-brand .title {
-        font-weight: 950;
-        color: #1f2d3d;
-        font-size: 1.65rem;
-        line-height: 1.0;
-        letter-spacing: .2px;
-    }
-    .sidebar-nav-caption {
-        color: #9aa5b1;
-        font-weight: 800;
-        font-size: .85rem;
-        padding: 4px 10px 8px 10px;
-        margin-top: 6px;
-        text-align: center;
-    }
-    /* Sidebar navigation buttons (match screenshot) */
-    section[data-testid="stSidebar"] div.stButton {
-        display: flex;
-        justify-content: center;
-        margin: 18px 0;
-        width: 100%;
-    }
-    section[data-testid="stSidebar"] div.stButton > button {
-        width: 100%;
-        background: #eaf7f3;
-        border: 1px solid #bfe8d6;
-        color: #1f2d3d;
-        border-radius: 6px;
-        padding: 14px 14px;
-        min-height: 52px;
-        font-size: 1.08rem;
-        font-weight: 950;
-        box-shadow: 0 6px 14px rgba(31, 45, 61, 0.18);
-    }
-    section[data-testid="stSidebar"] div.stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 18px rgba(31, 45, 61, 0.22);
-        border-color: #9fe0c6;
-    }
-    section[data-testid="stSidebar"] div.stButton > button:disabled {
-        background: #dff3ea;
-        border-color: #9fe0c6;
-        box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25), 0 6px 14px rgba(31, 45, 61, 0.16);
-        opacity: 1.0;
-    }
-
-    .sidebar-footer-wrap {
-        position: fixed;
-        bottom: 12px;
-        left: 0;
-        width: 21rem;          /* Streamlit default sidebar width */
-        padding: 0 0.75rem;
-        z-index: 9999;
-        pointer-events: none;
-    }
-    .sidebar-footer {
-        width: 100%;
-        text-align: center;
-        color: #7b8794;
-        font-size: 0.8rem;
-        font-weight: 650;
-        padding: 0;
-        white-space: nowrap;
-    }
-
-    /* On narrow screens, keep within sidebar */
-    @media (max-width: 900px) {
-        .sidebar-footer-wrap { width: 100%; }
-    }
-
-    /* ----- result panel ----- */
-    .result-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 12px;
-    }
-    .emotion-main {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 1.35rem;
-        font-weight: 900;
-        color: #1f2d3d;
-    }
-    .badge {
-        padding: 6px 10px;
-        border-radius: 999px;
-        font-weight: 900;
-        font-size: .85rem;
-        border: 1px solid #e6eaf1;
-        background: #f7f9fc;
-        color: #52606d;
-        white-space: nowrap;
-    }
-    .badge.positive { background: #e9fbf3; border-color: #bfe8d6; color: #0f766e; }
-    .badge.negative { background: #ffefef; border-color: #ffd1d1; color: #b42318; }
-    .badge.neutral  { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
-    .conf { margin-top: 4px; color: #7b8794; font-weight: 800; }
-    .top3-row { margin-top: 8px; display: grid; gap: 10px; }
-    .top3-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid #eef0f5;
-        background: #ffffff;
-    }
-    .top3-item .left { display: flex; align-items: center; gap: 10px; font-weight: 900; color: #1f2d3d; }
-    .top3-item .right { font-weight: 900; color: #1f2d3d; }
-
-    /* Streamlit widgets tweak */
-    div[data-testid="stTextArea"] textarea {
-        border-radius: 18px;
-        border: 1px solid #C5DEDB;   /* 与批量界面同色 */
-        background: #FFFFFF;
-        padding: 14px 14px;
-        font-size: 1.0rem;
-        color: #3C5C58;
-    }
-    div[data-testid="stTextArea"] textarea::placeholder {
-        color: #9aa5b1;
-        opacity: 1;
-    }
-    div[data-testid="stTextArea"] textarea:focus {
-        outline: none !important;
-        box-shadow: none !important;
-        border: 1px solid #C5DEDB !important;
-    }
-    div[data-testid="stTextArea"] textarea:focus-visible {
-        outline: none !important;
-    }
-    /* 被禁用的文本预览区域文本颜色（批量文本分析预览） */
-    div[data-testid="stTextArea"] textarea:disabled {
-        color: #1f2d3d !important;
-        -webkit-text-fill-color: #1f2d3d !important;  /* 兼容部分浏览器对 disabled 的渲染 */
-        opacity: 1 !important;                        /* 取消淡灰效果 */
-        background: #FFFFFF !important;
-    }
-
-    /* Prevent truncation of explanatory text */
-    .muted {
-        white-space: normal;
-        overflow: visible;
-        word-break: break-word;
-    }
-    /* 主区域按钮默认样式：白底小按钮（示例按钮等） */
-    div.stButton > button {
-        background: #FFFFFF;
-        border: 1px solid #D0D5DD;
-        color: #666666;
-        border-radius: 4px;
-        padding: 6px 14px;
-        min-height: 32px;
-        font-size: 12px;
-        font-weight: 500;
-        box-shadow: none;
-    }
-    /* 所有非 primary 按钮统一为上面的样式（兼容不同版本） */
-    button[data-testid^="baseButton-"]:not([data-testid$="primary"]) {
-        background: #FFFFFF !important;
-        border: 1px solid #D0D5DD !important;
-        color: #666666 !important;
-        border-radius: 4px !important;
-        padding: 6px 14px !important;
-        min-height: 32px !important;
-        font-size: 12px !important;
-        font-weight: 500 !important;
-        box-shadow: none !important;
-    }
-
-    /* Section titles to match screenshot */
-    .section-title {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 1.35rem;
-        font-weight: 950;
-        color: #1f2d3d;
-        margin: 6px 0 14px 0;
-        letter-spacing: .2px;
-    }
-
-    /* Batch upload dropzone (match截图配色) */
-    .batch-uploader-wrap { position: relative; }
-    /* 批量分析入口页整体居中排版 */
-    .batch-page-wrap {
-        width: min(1100px, 100%);
-        margin: 0 auto;
-    }
-    .batch-subtitle {
-        color: #7b8794;
-        font-weight: 650;
-        margin: -8px 0 12px 0;
-        font-size: 0.95rem;
-    }
-    .batch-block-title {
-        font-weight: 950;
-        font-size: 1.05rem;
-        color: #1f2d3d;
-        margin: 6px 0 2px 0;
-    }
-    .batch-block-meta {
-        color: #7b8794;
-        font-weight: 650;
-        font-size: 0.9rem;
-        margin-bottom: 8px;
-    }
-    /* 兼容不同版本的 data-testid 命名 */
-    div[data-testid="stFileUploaderDropzone"],
-    div[data-testid="stFileUploader"],
-    div[data-testid^="stFileUploader"] {
-        position: relative;
-        border: 3px dashed #C5DEDB !important;   /* 虚线边框色 */
-        border-radius: 26px !important;
-        background: #FFFFFF !important;          /* 背景色 */
-        padding: 44px 18px !important;
-        min-height: 160px;
-        overflow: hidden;
-        cursor: pointer;                         /* 整个虚线框区域都可点击并显示手型 */
-    }
-    /* 隐藏内部默认内容，只保留一个可点击区域 */
-    div[data-testid="stFileUploaderDropzone"] * ,
-    div[data-testid="stFileUploader"] * ,
-    div[data-testid^="stFileUploader"] * {
-        opacity: 0 !important;
-    }
-    /* 在虚线框内部居中显示云图标 + 文本 */
-    div[data-testid="stFileUploaderDropzone"]::before,
-    div[data-testid="stFileUploader"]::before,
-    div[data-testid^="stFileUploader"]::before {
-        content: "☁\\A拖拽或点击上传CSV\\A需包含'text'列";
-        white-space: pre-line;
-        position: absolute;
-        inset: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        color: #3C5C58;
-        font-weight: 950;
-        font-size: 1.2rem;
-        text-align: center;
-        pointer-events: none;
-        line-height: 1.5;
-    }
-
-    /* Input action row */
-    .hint {
-        color: #9aa5b1;
-        font-weight: 700;
-        font-size: .95rem;
-        margin-top: -6px;
-        margin-bottom: 10px;
-    }
-
-    /* 主区域 primary 按钮（如“开始分析”、“开始批量分析”）：深绿主按钮 */
-    button[kind="primary"] {
-        background: #2E8B57 !important;          /* 按钮底色 */
-        border: 1px solid #2E8B57 !important;
-        color: #ffffff !important;
-        border-radius: 4px !important;
-        min-height: 36px !important;
-        padding: 8px 22px !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(37, 108, 71, 0.35);
-    }
-    /* primary 按钮（某些版本下通过 data-testid 标记） */
-    button[data-testid$="primary"] {
-        background: #2E8B57 !important;
-        border: 1px solid #2E8B57 !important;
-        color: #ffffff !important;
-        border-radius: 4px !important;
-        min-height: 36px !important;
-        padding: 8px 22px !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-        box-shadow: 0 2px 6px rgba(37, 108, 71, 0.35) !important;
-    }
-
-    /* 单条文本分析：给文本 + 按钮这一整块套一层白色外框 */
-    /* 利用我们在 Python 中插入的 input-card-marker 标记来选中容器 */
-    div[data-testid="stContainer"] .input-card-marker,
-    div[data-testid="stVerticalBlockBorderWrapper"] .input-card-marker {
-        /* 把标记本身隐藏掉 */
-        display: none;
-    }
-    div[data-testid="stContainer"] .input-card-marker ~ div,
-    div[data-testid="stVerticalBlockBorderWrapper"] .input-card-marker ~ div {
-        /* 这是紧随其后的那块真正内容（textarea+按钮 的父 div），套成一个卡片 */
-        background: #FFFFFF;
-        border-radius: 16px;
-        border: 1px solid #E0E0E0;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        padding: 12px 14px;
-    }
-
-    /* Result right badges */
-    .badge-stack {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        align-items: flex-end;
-    }
-    .mini-badge {
-        padding: 6px 10px;
-        border-radius: 10px;
-        font-weight: 900;
-        font-size: .82rem;
-        border: 1px solid #e6eaf1;
-        background: #f7f9fc;
-        color: #52606d;
-        white-space: nowrap;
-    }
-
-    /* 结果卡标题行：标题 + 粗粒度（可点击展开） */
-    .result-title-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 10px;
-    }
-    .coarse-details {
-        position: relative;
-        margin: 0;
-    }
-    .coarse-details summary {
-        list-style: none;
-        cursor: pointer;
-        user-select: none;
-    }
-    .coarse-details summary::-webkit-details-marker { display: none; }
-    .coarse-pill {
-        padding: 6px 12px;
-        border-radius: 10px;
-        font-weight: 900;
-        font-size: .85rem;
-        border: 1px solid #e6eaf1;
-        background: #f7f9fc;
-        color: #52606d;
-        white-space: nowrap;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-    .coarse-pill.positive { background: #e9fbf3; border-color: #bfe8d6; color: #0f766e; }
-    .coarse-pill.negative { background: #ffefef; border-color: #ffd1d1; color: #b42318; }
-    .coarse-pill.neutral  { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
-    .coarse-menu {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        width: 140px;
-        background: #ffffff;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
-        padding: 10px;
-        display: grid;
-        gap: 10px;
-        z-index: 9999;
-    }
-    .coarse-option {
-        padding: 10px 12px;
-        border-radius: 8px;
-        font-weight: 900;
-        text-align: center;
-        border: 1px solid transparent;
-    }
-    .coarse-option.positive { background: #e9fbf3; color: #0f766e; border-color: #bfe8d6; }
-    .coarse-option.negative { background: #ffefef; color: #b42318; border-color: #ffd1d1; }
-    .coarse-option.neutral  { background: #fdf3e6; color: #8a5a00; border-color: #f1d7b0; }
-
-    /* Progress bar colors for批量分析 */
-    div[role="progressbar"] > div {
-        background-color: #B5CFCD !important;   /* 填充色 */
-    }
-    div[role="progressbar"] {
-        background-color: #F5F5F5 !important;   /* 背景色 */
-    }
-
-    /* About page card text颜色统一为深黑 */
-    .about-card {
-        color: #1f2d3d;
-        font-size: 0.98rem;
-    }
-    .about-card strong {
-        color: #1f2d3d;
-    }
-
-    /* 单条文本输入整体卡片：外层白框 + 内部输入框 + 按钮 */
-    .single-input-card {
-        padding: 8px 10px 12px 10px;
-        background: #FFFFFF;
-        border-radius: 16px;
-    }
-    /* 内部实际的多行输入框 */
-    .single-input-card div[data-testid="stTextArea"] textarea {
-        border-radius: 8px;
-        border: 1px solid #D0D5DD;
-        background: #FFFFFF;
-        padding: 16px 16px;
-        font-size: 14px;
-        color: #333333;
-    }
-    .single-input-card div[data-testid="stTextArea"] textarea::placeholder {
-        color: #999999;
-    }
-    /* 底部三个示例按钮：轻量白底圆角 */
-    .single-input-card div.stButton:nth-child(-n+3) > button[data-testid^="baseButton-"] {
-        background: #FFFFFF !important;
-        border: 1px solid #D0D5DD !important;
-        color: #666666 !important;
-        border-radius: 20px !important;
-        padding: 6px 14px !important;
-        min-height: 32px !important;
-        font-size: 12px !important;
-        font-weight: 500 !important;
-        box-shadow: none !important;
-    }
-    /* 最后一个按钮“开始分析”：绿色主按钮，稍大 */
-    .single-input-card div.stButton:last-child > button[data-testid^="baseButton-"] {
-        background: #2E8B57 !important;
-        border: 1px solid #2E8B57 !important;
-        color: #FFFFFF !important;
-        border-radius: 4px !important;
-        padding: 8px 22px !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-        min-height: 36px !important;
-        box-shadow: 0 2px 6px rgba(37, 108, 71, 0.35) !important;
-    }
-    .single-input-card div.stButton:last-child > button[data-testid^="baseButton-"]:hover {
-        background: #256C47 !important;
-        border-color: #256C47 !important;
-    }
-
-    /* 批量分析结果页「下载结果」按钮样式：右下角圆角深绿按钮 */
-    .download-btn-wrap button {
-        background: #2E8B57 !important;
-        border-radius: 999px !important;
-        padding: 10px 28px !important;
-        font-size: 14px !important;
-        font-weight: 700 !important;
-        color: #ffffff !important;
-        border: none !important;
-        box-shadow: 0 4px 10px rgba(37, 108, 71, 0.35) !important;
-    }
-    .download-btn-wrap button:hover {
-        background: #256C47 !important;
-        box-shadow: 0 6px 14px rgba(37, 108, 71, 0.4) !important;
-    }
-
-    /* 详细结果表格（批量分析）：自定义浅色表格样式 */
-    table.result-table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #ffffff;
-        font-size: 0.9rem;
-        color: #1f2d3d;
-    }
-    table.result-table thead tr {
-        background: #f3f4f6;
-    }
-    table.result-table th,
-    table.result-table td {
-        border: 1px solid #e5e7eb;
-        padding: 6px 10px;
-        text-align: left;
-    }
-    table.result-table th {
-        font-weight: 700;
-        color: #374151;
-    }
-</style>
-"""
-
-
 # ------------------------------------------
 # 加载配置和模型
 # ------------------------------------------
@@ -748,11 +184,9 @@ def render_text_input_card() -> tuple[str, bool]:
         st.session_state.pop("pending_example_text", None)
 
     with st.container(border=True):
-        # 标记 + 外层自定义容器，用于 CSS 精准美化这一块区域
-        st.markdown(
-            '<div class="input-card-marker"></div><div class="single-input-card">',
-            unsafe_allow_html=True,
-        )
+        # 标记：用于 CSS 通过 :has() 选中这个容器做卡片化样式
+        # 不要用“打开 div 再放 Streamlit 组件”的方式包裹内容（会渲染出空白长条框）
+        st.markdown('<div class="input-card-marker"></div>', unsafe_allow_html=True)
 
         user_input = st.text_area(
             "请输入要分析的文本",
@@ -762,35 +196,34 @@ def render_text_input_card() -> tuple[str, bool]:
             label_visibility="collapsed",
         )
 
-        ex_cols = st.columns([1, 1, 1, 1.2], gap="small")
         examples = [
             ("开心示例", "今天终于拿到了心仪的 offer，感觉所有的努力都值得了！"),
             ("悲伤示例", "听到这个坏消息，我心里非常难过。"),
             ("惊讶示例", "居然中了大奖，太意外了！"),
         ]
-        for i, (label, text) in enumerate(examples):
-            with ex_cols[i]:
-                if st.button(label, key=f"pill_{i}", use_container_width=True):
-                    # 示例文本单独展示，而不是写入输入框
-                    st.session_state["example_text"] = text
+        example_display = ["（不使用示例）"] + [f"{label}：{text}" for label, text in examples]
 
-        with ex_cols[3]:
-            analyze_btn = st.button(
-                "开始分析",
-                type="primary",
-                use_container_width=True,
+        def _apply_example_to_text() -> None:
+            choice = st.session_state.get("example_choice", "（不使用示例）")
+            if choice == "（不使用示例）":
+                return
+            for label, text in examples:
+                if choice.startswith(f"{label}："):
+                    st.session_state["single_text"] = text
+                    return
+
+        action_left, action_right = st.columns([3.2, 1.2], gap="small")
+        with action_left:
+            st.selectbox(
+                "示例文本列表",
+                options=example_display,
+                key="example_choice",
+                label_visibility="collapsed",
+                on_change=_apply_example_to_text,
+                help="点击示例后会自动填充到上方输入框",
             )
-
-        # 在按钮下方单独展示当前选择的示例文本
-        example_text = st.session_state.get("example_text")
-        if example_text:
-            st.markdown(
-                f"<div class='hint'>示例文本：{example_text}</div>",
-                unsafe_allow_html=True,
-            )
-
-        # 关闭 single-input-card 容器 div
-        st.markdown("</div>", unsafe_allow_html=True)
+        with action_right:
+            analyze_btn = st.button("开始分析", type="primary", use_container_width=True)
 
     return user_input, analyze_btn
 
@@ -812,7 +245,17 @@ if st.session_state.page == "单条文本分析":
         with st.container(border=True):
             st.markdown('<div class="result-card-marker" style="display:none;"></div>', unsafe_allow_html=True)
 
-            # 标题行 + 右侧粗粒度按钮（可点击展开）
+            if analyze_btn:
+                if not user_input.strip():
+                    st.warning("请输入文本后再分析。")
+                else:
+                    with st.spinner("正在分析情感..."):
+                        result = predict_emotion(user_input.strip())
+                    st.session_state.last_result = result
+                    st.session_state.show_charts = True
+
+            # 标题行 + 右侧粗粒度结果（中性/正面/负面）
+            # 放在按钮逻辑之后，确保点击“开始分析”后能显示最新结果
             if "last_result" in st.session_state:
                 _coarse = st.session_state.last_result.get("coarse", "中性")
             else:
@@ -836,17 +279,35 @@ if st.session_state.page == "单条文本分析":
                 unsafe_allow_html=True,
             )
 
-            if analyze_btn:
-                if not user_input.strip():
-                    st.warning("请输入文本后再分析。")
-                else:
-                    with st.spinner("正在分析情感..."):
-                        result = predict_emotion(user_input.strip())
-                    st.session_state.last_result = result
-                    st.session_state.show_charts = True
-
             if "last_result" not in st.session_state:
-                st.markdown('<div class="muted">在左侧输入文本并点击「开始分析」，这里会展示情感结果与 Top-3。</div>', unsafe_allow_html=True)
+                # 初始占位：在还未开始分析时也展示与正式结果相同的布局结构
+                st.markdown(
+                    """
+                    <div class="result-head">
+                        <div class="emotion-main">🙂 待分析</div>
+                        <div class="badge-stack">
+                            <div class="mini-badge">置信度 --</div>
+                        </div>
+                    </div>
+                    <div class="muted" style="margin-top: 10px; font-weight: 900;">可能的情感</div>
+                    <div class="top3-row">
+                        <div class="top3-item">
+                            <div class="left">🙂 情感 1</div>
+                            <div class="right">--</div>
+                        </div>
+                        <div class="top3-item">
+                            <div class="left">🙂 情感 2</div>
+                            <div class="right">--</div>
+                        </div>
+                        <div class="top3-item">
+                            <div class="left">🙂 情感 3</div>
+                            <div class="right">--</div>
+                        </div>
+                    </div>
+                    <div class="muted" style="margin-top: 8px;">在左侧输入文本并点击「开始分析」，这里会展示真实的情感结果与 Top-3 概率。</div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             else:
                 result = st.session_state.last_result
                 emotion_id = int(result["fine_id"])
@@ -1002,6 +463,19 @@ elif st.session_state.page == "批量文本分析":
                 label_visibility="collapsed",
                 key=upload_key,
             )
+            # 上传后在同一块区域显示“文件图标 + 文件名”，并保持高度不变
+            if uploaded_file is not None:
+                st.markdown(
+                    f"""
+                    <div class="batch-uploader-overlay">
+                        <div class="batch-uploader-file">
+                            <div class="batch-uploader-icon">📄</div>
+                            <div class="batch-uploader-name">{uploaded_file.name}</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             st.markdown('</div>', unsafe_allow_html=True)
 
             df = None
@@ -1114,6 +588,8 @@ elif st.session_state.page == "批量文本分析":
                     status_placeholder.write(f"正在分析 {idx + 1}/{total}：{r['fine_name']}")
 
                 st.session_state.batch_result_df = pd.DataFrame(results)
+                # 批量分析结束后：进入结果页时自动回到顶部
+                st.session_state.scroll_to_top = True
                 st.success("分析完成。")
                 st.rerun()
 
@@ -1121,13 +597,20 @@ elif st.session_state.page == "批量文本分析":
 
     else:
         # ---------- 第二个界面：结果展示（饼图 + 表格） ----------
+        if st.session_state.get("scroll_to_top"):
+            components.html(
+                "<script>window.scrollTo({top: 0, left: 0, behavior: 'instant'});</script>",
+                height=0,
+            )
+            st.session_state.scroll_to_top = False
+
         with st.container(border=True):
             top_row_left, top_row_right = st.columns([1, 0.15], gap="small")
             with top_row_left:
                 st.markdown('<div class="card-title">结果展示</div>', unsafe_allow_html=True)
             with top_row_right:
                 # 返回上传界面：清空 batch_result_df 并刷新
-                if st.button("返回上传界面", use_container_width=True, key="back_to_upload"):
+                if st.button("返回上传界面", type="primary", use_container_width=True, key="back_to_upload"):
                     st.session_state.batch_result_df = None
                     st.rerun()
 
@@ -1193,6 +676,7 @@ elif st.session_state.page == "批量文本分析":
                 file_name="emotion_analysis_results.csv",
                 mime="text/csv",
                 key="download_batch_result",
+                type="primary",
             )
             st.markdown('</div>', unsafe_allow_html=True)
 
