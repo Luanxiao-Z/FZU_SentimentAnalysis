@@ -1,3 +1,6 @@
+# 批量情感数据清洗与标准化脚本：遍历当前目录CSV，将英文情感标签映射为统一的中文字段（coarse_label, emotion_name, label）并过滤无效数据
+
+
 import csv
 import os
 import logging

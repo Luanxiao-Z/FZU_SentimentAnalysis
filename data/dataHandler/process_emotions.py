@@ -1,3 +1,5 @@
+# 情感数据清洗与标签映射脚本：自动识别编码/分隔符读取CSV，过滤多标签及中性数据，将原始ID映射为统一的情感分类体系（粗粒度/细粒度/中文名称）
+
 import pandas as pd
 import os
 import sys
