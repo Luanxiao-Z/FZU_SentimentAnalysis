@@ -1,2 +1,2 @@
 .idea/
-models/emotion_model/*
+models/emotion_model/pytorch_model.bin

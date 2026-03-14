@@ -1,0 +1,48 @@
+{
+  "_name_or_path": "bert-base-chinese",
+  "architectures": [
+    "BertForSequenceClassification"
+  ],
+  "attention_probs_dropout_prob": 0.1,
+  "classifier_dropout": null,
+  "directionality": "bidi",
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "id2label": {
+    "0": "\u60b2\u4f24",
+    "1": "\u5f00\u5fc3",
+    "2": "\u751f\u6c14",
+    "3": "\u60ca\u8bb6",
+    "4": "\u6050\u60e7",
+    "5": "\u538c\u6076"
+  },
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "label2id": {
+    "\u538c\u6076": 5,
+    "\u5f00\u5fc3": 1,
+    "\u6050\u60e7": 4,
+    "\u60b2\u4f24": 0,
+    "\u60ca\u8bb6": 3,
+    "\u751f\u6c14": 2
+  },
+  "layer_norm_eps": 1e-12,
+  "max_position_embeddings": 512,
+  "model_type": "bert",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "pad_token_id": 0,
+  "pooler_fc_size": 768,
+  "pooler_num_attention_heads": 12,
+  "pooler_num_fc_layers": 3,
+  "pooler_size_per_head": 128,
+  "pooler_type": "first_token_transform",
+  "position_embedding_type": "absolute",
+  "problem_type": "single_label_classification",
+  "torch_dtype": "float32",
+  "transformers_version": "4.12.0",
+  "type_vocab_size": 2,
+  "use_cache": true,
+  "vocab_size": 21128
+}
