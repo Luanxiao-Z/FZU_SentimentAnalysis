@@ -172,7 +172,7 @@ def split_chinese_sentences(text: str) -> list:
     sentences = []
     
     # 中文句子结束标点：。！？!? (包括中英文)
-    sentence_end_pattern = r'([.！!?？])'
+    sentence_end_pattern = r'([。.！!?？])'
     
     for para in paragraphs:
         para = para.strip()
