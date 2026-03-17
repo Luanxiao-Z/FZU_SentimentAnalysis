@@ -16,6 +16,7 @@ from datasets import Dataset
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
+    confusion_matrix,
     f1_score,
     precision_recall_fscore_support,
 )
@@ -39,15 +40,16 @@ sys.path.insert(0, BASE_DIR)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
 # ------------------------------------------
-# 配置参数
+# 配置参数（作为默认值，可被命令行覆盖）
 # ------------------------------------------
 
 NUM_LABELS = 6  # 分类类别数：6 种细粒度情感 (悲伤、开心、生气、惊讶、恐惧、厌恶)
-MAX_LENGTH = 128  # 文本最大长度，超过此长度的文本会被截断，不足的会 padding。BERT 最大支持 512
-BATCH_SIZE = 16  # 每批次训练的样本数。显存允许的情况下越大越好，可加速训练但会增加内存占用
-NUM_EPOCHS = 5  # 训练轮数，即整个数据集被遍历的次数。细粒度任务更难，多训练几轮
-LEARNING_RATE = 2e-5  # 学习率：控制参数更新步长。BERT 微调常用 2e-5 到 5e-5，过大会导致不收敛
-MODEL_NAME = "bert-base-chinese"  # 预训练模型名称：使用中文 BERT 基础模型
+DEFAULT_MAX_LENGTH = 128  # 文本最大长度，超过此长度的文本会被截断，不足的会 padding。BERT 最大支持 512
+DEFAULT_BATCH_SIZE = 16  # 每批次训练的样本数。显存允许的情况下越大越好，可加速训练但会增加内存占用
+DEFAULT_NUM_EPOCHS = 8  # 训练轮数，细粒度少数类往往在 3-4 轮后才开始收敛
+DEFAULT_LEARNING_RATE = 2e-5  # 学习率：控制参数更新步长。BERT/Roberta 微调常用 2e-5 到 5e-5
+DEFAULT_WEIGHT_DECAY = 0.02  # L2 正则，稍大一点抑制多数类过拟合
+DEFAULT_MODEL_NAME = "hfl/chinese-roberta-wwm-ext"  # 更强的中文 RoBERTa-wwm 基座
 RANDOM_STATE = 42  # 随机种子，保证划分可复现
 TRAIN_RATIO, EVAL_RATIO, TEST_RATIO = 0.8, 0.1, 0.1  # 训练集:验证集:测试集 = 8:1:1
 
@@ -60,7 +62,7 @@ EMOTION_NAME_TO_ID = {v: k for k, v in EMOTION_NAMES.items()}
 
 
 def parse_args():
-    """解析命令行参数：数据文件名（默认 data.csv）、可选输出目录。"""
+    """解析命令行参数：数据文件名、模型与训练超参、输出目录。"""
     parser = argparse.ArgumentParser(description="细粒度情感分析模型训练")
     parser.add_argument(
         "--data",
@@ -75,9 +77,57 @@ def parse_args():
         help="模型与指标保存目录，默认: models/emotion_model",
     )
     parser.add_argument(
+        "--bert_model",
+        type=str,
+        default=DEFAULT_MODEL_NAME,
+        help=f"预训练 BERT 名称或路径，默认: {DEFAULT_MODEL_NAME}",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=DEFAULT_NUM_EPOCHS,
+        help=f"训练轮数，默认: {DEFAULT_NUM_EPOCHS}",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help=f"batch 大小，默认: {DEFAULT_BATCH_SIZE}",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=DEFAULT_LEARNING_RATE,
+        help=f"学习率，默认: {DEFAULT_LEARNING_RATE}",
+    )
+    parser.add_argument(
+        "--max_length",
+        type=int,
+        default=DEFAULT_MAX_LENGTH,
+        help=f"序列最大长度，默认: {DEFAULT_MAX_LENGTH}",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=DEFAULT_WEIGHT_DECAY,
+        help=f"权重衰减（L2 正则），默认: {DEFAULT_WEIGHT_DECAY}",
+    )
+    parser.add_argument(
+        "--label_smoothing",
+        type=float,
+        default=0.1,
+        help="Label smoothing 系数（0 表示关闭，默认 0.1）",
+    )
+    parser.add_argument(
         "--no_class_weight",
         action="store_true",
         help="不使用类别权重（默认使用权重以缓解类别不平衡）",
+    )
+    parser.add_argument(
+        "--boost_weak",
+        type=float,
+        default=1.0,
+        help="对弱类(悲伤0、生气2)的类别权重再乘的系数，>1 表示更关注这两类，默认 1.0 不加重",
     )
     return parser.parse_args()
 
@@ -127,16 +177,24 @@ def split_811(df, random_state=RANDOM_STATE):
     return train_df, eval_df, test_df
 
 
-def get_class_weights(train_labels):
+def get_class_weights(train_labels, boost_weak=1.0):
     """
     根据训练集标签计算类别权重（逆频率平衡），用于不平衡数据。
     少数类获得更大权重，使损失函数更关注少数类。
+    boost_weak: 对弱类(悲伤0、生气2)的权重再乘的系数，>1 表示更关注这两类。
     """
     classes = np.arange(NUM_LABELS)
-    weights = compute_class_weight(
-        "balanced", classes=classes, y=np.array(train_labels)
+    raw_weights = compute_class_weight(
+        class_weight="balanced", classes=classes, y=np.array(train_labels)
     )
-    return torch.tensor(weights, dtype=torch.float32)
+    # 平滑权重：避免极端权重导致梯度震荡
+    smooth_weights = np.sqrt(raw_weights)
+    smooth_weights = smooth_weights / smooth_weights.mean()
+    if boost_weak != 1.0:
+        for idx in (0, 2):  # 悲伤(0)、生气(2)
+            smooth_weights[idx] *= boost_weak
+        smooth_weights = smooth_weights / smooth_weights.mean()  # 再归一化，保持 loss 尺度
+    return torch.tensor(smooth_weights, dtype=torch.float32)
 
 
 class WeightedTrainer(Trainer):
@@ -145,9 +203,10 @@ class WeightedTrainer(Trainer):
     缓解「开心」等大类主导、「恐惧」等小类被忽略的问题。
     """
 
-    def __init__(self, class_weights=None, **kwargs):
+    def __init__(self, class_weights=None, label_smoothing: float = 0.0, **kwargs):
         super().__init__(**kwargs)
         self.class_weights = class_weights  # (num_labels,) 在 device 上后再用
+        self.label_smoothing = float(label_smoothing) if label_smoothing is not None else 0.0
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None, **kwargs):
         # 兼容新版 transformers 传入的 num_items_in_batch 等参数
@@ -156,9 +215,9 @@ class WeightedTrainer(Trainer):
         logits = outputs.logits
         if self.class_weights is not None:
             weights = self.class_weights.to(logits.device)
-            loss_fct = CrossEntropyLoss(weight=weights)
+            loss_fct = CrossEntropyLoss(weight=weights, label_smoothing=self.label_smoothing)
         else:
-            loss_fct = CrossEntropyLoss()
+            loss_fct = CrossEntropyLoss(label_smoothing=self.label_smoothing)
         loss = loss_fct(logits, labels)
         return (loss, outputs) if return_outputs else loss
 
@@ -213,6 +272,15 @@ def main():
     output_dir = args.output_dir or os.path.join(BASE_DIR, "models", "emotion_model")
     os.makedirs(output_dir, exist_ok=True)
 
+    # 将命令行参数与默认配置解耦，便于调参
+    bert_model = args.bert_model or DEFAULT_MODEL_NAME
+    num_epochs = args.epochs or DEFAULT_NUM_EPOCHS
+    batch_size = args.batch_size or DEFAULT_BATCH_SIZE
+    learning_rate = args.lr or DEFAULT_LEARNING_RATE
+    max_length = args.max_length or DEFAULT_MAX_LENGTH
+    weight_decay = args.weight_decay or DEFAULT_WEIGHT_DECAY
+    label_smoothing = float(getattr(args, "label_smoothing", 0.1))
+
     print("=" * 60)
     print("😊 细粒度情感分析系统")
     print("类别：悲伤(0) 开心(1) 生气(2) 惊讶(3) 恐惧(4) 厌恶(5)")
@@ -250,14 +318,14 @@ def main():
     # ------------------------------------------
     # 加载预训练 BERT 模型（6 分类）
     # ------------------------------------------
-    print(f"\n加载模型: {MODEL_NAME}")
+    print(f"\n加载模型: {bert_model}")
     print(f"输出类别数: {NUM_LABELS}")
     # 加载中文 BERT 分词器，用于将文本转换为模型输入
-    tokenizer = BertTokenizer.from_pretrained(MODEL_NAME)
+    tokenizer = BertTokenizer.from_pretrained(bert_model)
     # 加载 BERT 序列分类模型；num_labels=6 表示最后全连接层输出 6 个 logits，对应 6 种情感
     # id2label/label2id：设置标签映射，方便推理时将预测的 ID 转换为情感名称
     model = BertForSequenceClassification.from_pretrained(
-        MODEL_NAME,
+        bert_model,
         num_labels=NUM_LABELS,
         id2label=EMOTION_NAMES,
         label2id={v: k for k, v in EMOTION_NAMES.items()},
@@ -278,7 +346,7 @@ def main():
             examples["text"],
             padding="max_length",
             truncation=True,
-            max_length=MAX_LENGTH,
+            max_length=max_length,
             return_tensors=None,
         )
 
@@ -299,11 +367,11 @@ def main():
     # ------------------------------------------
     training_args = TrainingArguments(
         output_dir=output_dir,  # 模型与 checkpoint 保存目录
-        num_train_epochs=NUM_EPOCHS,
-        per_device_train_batch_size=BATCH_SIZE,  # 每个设备的训练批大小
-        per_device_eval_batch_size=BATCH_SIZE,   # 每个设备的评估批大小
+        num_train_epochs=num_epochs,
+        per_device_train_batch_size=batch_size,  # 每个设备的训练批大小
+        per_device_eval_batch_size=batch_size,   # 每个设备的评估批大小
         warmup_ratio=0.1,      # 前 10% 步数线性增加学习率，有助于稳定训练
-        weight_decay=0.01,     # L2 正则化，防止过拟合
+        weight_decay=weight_decay,     # L2 正则化，防止过拟合
         logging_dir=os.path.join(BASE_DIR, "logs"),
         logging_steps=50,      # 每 50 步记录一次日志
         eval_strategy="epoch", # 每个 epoch 结束后在验证集上评估
@@ -312,7 +380,7 @@ def main():
         metric_for_best_model="f1_macro",  # 用宏平均 F1 选最佳模型
         greater_is_better=True,
         save_total_limit=2,    # 最多保留 2 个 checkpoint，节省磁盘
-        learning_rate=LEARNING_RATE,
+        learning_rate=learning_rate,
         fp16=use_fp16,        # GPU 时启用混合精度
         report_to="none",     # 不向 wandb 等上报
     )
@@ -321,25 +389,29 @@ def main():
     # 类别权重（不平衡数据时提升少数类影响力）
     # ------------------------------------------
     use_class_weight = not args.no_class_weight
+    boost_weak = float(getattr(args, "boost_weak", 1.0))
     class_weights = None
     if use_class_weight:
-        class_weights = get_class_weights(train_df["label"].tolist())
-        print(f"\n已启用类别权重（逆频率平衡），少数类（如恐惧、惊讶）将获得更大损失权重")
+        class_weights = get_class_weights(train_df["label"].tolist(), boost_weak=boost_weak)
+        print(f"\n已启用类别权重（逆频率平衡），少数类将获得更大损失权重")
+        if boost_weak != 1.0:
+            print(f"  并对弱类 悲伤(0)、生气(2) 额外乘系数 {boost_weak}")
 
     # ------------------------------------------
     # 创建 Trainer 并开始训练
     # ------------------------------------------
-    trainer_cls = WeightedTrainer if class_weights is not None else Trainer
+    trainer_cls = WeightedTrainer if class_weights is not None or label_smoothing > 0 else Trainer
     trainer_kw = dict(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         compute_metrics=compute_metrics,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],  # 验证集指标连续 2 个 epoch 无提升则早停
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],  # 验证集指标连续 3 个 epoch 无提升则早停
     )
     if trainer_cls is WeightedTrainer:
         trainer_kw["class_weights"] = class_weights
+        trainer_kw["label_smoothing"] = label_smoothing
     trainer = trainer_cls(**trainer_kw)
 
     print("\n开始训练...")
@@ -385,7 +457,14 @@ def main():
         )
     )
 
-    # 将指标保存为 JSON，便于汇报与存档
+    # 混淆矩阵：行=真实类别，列=预测类别，便于分析生气/悲伤等易混类
+    cm = confusion_matrix(labels, preds, labels=range(NUM_LABELS))
+    print("\n混淆矩阵 (行=真实, 列=预测):")
+    print("      ", " ".join(f"{target_names[i]:>6}" for i in range(NUM_LABELS)))
+    for i in range(NUM_LABELS):
+        print(f" {target_names[i]:4s} ", " ".join(f"{cm[i, j]:6d}" for j in range(NUM_LABELS)))
+
+    # 将指标与混淆矩阵保存为 JSON，便于汇报与存档
     metrics_save = {
         "accuracy": metrics["accuracy"],
         "precision_macro": metrics["precision_macro"],
@@ -395,6 +474,7 @@ def main():
         "recall_per_class": metrics["recall_per_class"],
         "f1_per_class": metrics["f1_per_class"],
         "support_per_class": metrics["support_per_class"],
+        "confusion_matrix": cm.tolist(),
         "emotion_names": EMOTION_NAMES,
     }
     metrics_path = os.path.join(output_dir, "test_metrics.json")
