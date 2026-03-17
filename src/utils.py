@@ -48,7 +48,7 @@ def load_csv_with_encoding(file_path, encodings=None):
                 df = pd.read_csv(file_path, encoding=enc)
             else:
                 df = pd.read_csv(file_path, encoding=enc)
-            return df
+            return df, None
         except Exception as e:
             last_error = e
             continue
