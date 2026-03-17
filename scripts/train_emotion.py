@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -44,8 +45,8 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")
 
 NUM_LABELS = 6  # 分类类别数：6 种细粒度情感 (悲伤、开心、生气、惊讶、恐惧、厌恶)
 MAX_LENGTH = 128  # 文本最大长度，超过此长度的文本会被截断，不足的会 padding。BERT 最大支持 512
-BATCH_SIZE = 16  # 每批次训练的样本数。显存允许的情况下越大越好，可加速训练但会增加内存占用
-NUM_EPOCHS = 5  # 训练轮数，即整个数据集被遍历的次数。细粒度任务更难，多训练几轮
+BATCH_SIZE = 32  # 每批次训练的样本数。显存允许的情况下越大越好，可加速训练但会增加内存占用
+NUM_EPOCHS = 10  # 训练轮数，即整个数据集被遍历的次数。细粒度任务更难，多训练几轮
 LEARNING_RATE = 2e-5  # 学习率：控制参数更新步长。BERT 微调常用 2e-5 到 5e-5，过大会导致不收敛
 MODEL_NAME = "bert-base-chinese"  # 预训练模型名称：使用中文 BERT 基础模型
 RANDOM_STATE = 42  # 随机种子，保证划分可复现
@@ -65,7 +66,7 @@ def parse_args():
     parser.add_argument(
         "--data",
         type=str,
-        default="data.csv",
+        default="train_emotion.csv",
         help="数据文件名，置于 data 目录下。如 data.csv（约10万条）或 OCEMOTION.csv（约4万条）。建议先用 OCEMOTION 调参再用 data.csv 优化。",
     )
     parser.add_argument(
@@ -87,11 +88,41 @@ def load_and_prepare_data(data_filename):
     从 data 目录加载 CSV，统一为 text + label 两列，并过滤无效行。
     支持列名：text/label（如 data.csv），或 emotion_name 映射为 label（如部分 OCEMOTION 格式）。
     """
+    from pathlib import Path
+    
     data_path = os.path.join(BASE_DIR, "data", data_filename)
-    if not os.path.isfile(data_path):
-        raise FileNotFoundError(f"数据文件不存在: {data_path}")
-
-    df = pd.read_csv(data_path)
+    path_obj = Path(data_path)
+    
+    if not path_obj.exists():
+        raise FileNotFoundError(f"数据文件不存在：{data_path}")
+    
+    # Windows 下处理中文/长路径：使用 Path 对象和 open() 绕过限制
+    try:
+        # 方法 1: 使用 Path.resolve() 获取绝对路径并用 open() 读取
+        resolved_path = path_obj.resolve()
+        with open(resolved_path, 'r', encoding='utf-8') as f:
+            df = pd.read_csv(f)
+    except Exception as e1:
+        try:
+            # 方法 2: 尝试 GBK 编码
+            with open(resolved_path, 'r', encoding='gbk') as f:
+                df = pd.read_csv(f)
+        except Exception as e2:
+            try:
+                # 方法 3: 使用 Windows 长路径前缀\\?\
+                long_path_prefix = "\\\\?\\"
+                long_path = long_path_prefix + str(resolved_path)
+                with open(long_path, 'r', encoding='utf-8') as f:
+                    df = pd.read_csv(f)
+            except Exception as e3:
+                raise OSError(
+                    f"无法读取文件 {data_path}\n"
+                    f"可能原因：\n"
+                    f"  1. 文件被 Excel/WPS 等程序占用\n"
+                    f"  2. 文件路径过长或包含特殊字符\n"
+                    f"  3. pandas 版本过旧（当前版本：{pd.__version__}）\n"
+                    f"建议：关闭占用文件的程序，或升级 pandas: pip install --upgrade pandas"
+                )
     # 统一文本列：部分数据集使用 sentence 列名
     if "text" not in df.columns and "sentence" in df.columns:
         df = df.rename(columns={"sentence": "text"})
@@ -189,7 +220,7 @@ def compute_full_metrics(labels, preds):
 
     # 每类 precision, recall, f1, support；不取 average 得到每类数组
     precision_per, recall_per, f1_per, support_per = precision_recall_fscore_support(
-        labels, preds, labels=range(n_classes), average=None, zero_division=0
+        labels, preds, labels=range(n_classes), average=None
     )
     # 宏平均：各类算术平均
     precision_macro = float(np.mean(precision_per))
@@ -306,7 +337,7 @@ def main():
         weight_decay=0.01,     # L2 正则化，防止过拟合
         logging_dir=os.path.join(BASE_DIR, "logs"),
         logging_steps=50,      # 每 50 步记录一次日志
-        eval_strategy="epoch", # 每个 epoch 结束后在验证集上评估
+        evaluation_strategy="epoch", # 每个 epoch 结束后在验证集上评估（兼容旧版 transformers）
         save_strategy="epoch", # 每个 epoch 结束后保存 checkpoint
         load_best_model_at_end=True,   # 训练结束时加载验证集上最佳的模型
         metric_for_best_model="f1_macro",  # 用宏平均 F1 选最佳模型

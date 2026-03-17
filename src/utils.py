@@ -153,10 +153,8 @@ def get_coarse_badge_class(coarse: str) -> str:
 
 def split_chinese_sentences(text: str) -> list:
     """
-    根据更优的方式划分句子
     
     支持多种中文标点符号（句号、感叹号、问号等）进行句子分割
-    同时保留换行符分割的功能
     
     Args:
         text: 输入文本
@@ -165,44 +163,35 @@ def split_chinese_sentences(text: str) -> list:
         句子列表
     """
     import re
+
+    # 去除换行符，将文本合并为连续的一行
+    text = text.replace('\r\n', ' ').replace('\r', ' ').replace('\n', ' ')
     
-    # 首先按换行符分割，处理段落
-    paragraphs = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    # 中文句子结束标点：。！？!? (包括中英文)
+    sentence_end_pattern = r'([.。！？!?])'
     
     sentences = []
     
-    # 中文句子结束标点：。！？!? (包括中英文)
-    sentence_end_pattern = r'([。.！!?？])'
+    # 使用正则表达式分割句子
+    parts = re.split(sentence_end_pattern, text)
     
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
+    # 重组句子和标点
+    current_sentence = ""
+    for i, part in enumerate(parts):
+        if not part:
             continue
-        
-        # 如果段落很短或没有句末标点，直接作为一句
-        if len(para) < 50 or not re.search(sentence_end_pattern, para):
-            sentences.append(para)
-        else:
-            # 使用正则表达式分割句子
-            parts = re.split(sentence_end_pattern, para)
             
-            # 重组句子和标点
+        # 如果是标点符号
+        if re.match(sentence_end_pattern, part):
+            current_sentence += part
+            sentences.append(current_sentence.strip())
             current_sentence = ""
-            for i, part in enumerate(parts):
-                if not part:
-                    continue
-                    
-                # 如果是标点符号
-                if re.match(sentence_end_pattern, part):
-                    current_sentence += part
-                    sentences.append(current_sentence.strip())
-                    current_sentence = ""
-                else:
-                    current_sentence += part
-            
-            # 处理最后剩余的部分
-            if current_sentence.strip():
-                sentences.append(current_sentence.strip())
+        else:
+            current_sentence += part
+    
+    # 处理最后剩余的部分
+    if current_sentence.strip():
+        sentences.append(current_sentence.strip())
     
     return sentences
 
