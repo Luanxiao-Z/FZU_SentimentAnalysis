@@ -35,7 +35,13 @@ FZU_SentimentAnalysis/
 │   ├── __init__.py         # 包初始化文件
 │   ├── config.py           # 配置文件：模型路径、超参数等
 │   ├── model_handler.py    # 模型操作类：加载、预测逻辑
-│   └── utils.py            # 工具函数：数据处理、CSS 加载等
+│   └── utils/              # 工具函数模块（按功能拆分）
+│       ├── __init__.py         # 工具函数包初始化
+│       ├── file_io.py          # 文件 I/O 工具：CSV、Excel、PDF、DOCX、Markdown、TXT 读取
+│       ├── text_processing.py  # 文本处理工具：句子分割
+│       ├── data_validation.py  # 数据验证和格式化工具
+│       ├── document_processor.py # 文档处理工具：文档转句子 DataFrame
+│       └── emotion_utils.py    # 情感标签工具函数
 ├── assets/                 # 静态资源
 │   └── style.css           # 网页样式表
 ├── models/                 # 模型存储目录
