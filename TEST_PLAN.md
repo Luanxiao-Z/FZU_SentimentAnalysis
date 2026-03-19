@@ -22,13 +22,15 @@
 
 | 优先级 | 测试模块 | 测试类型 | 时间分配 |
 |-------|---------|---------|---------|
-| **P0** | BERT 模型推理 | 单元测试 + 集成测试 | 第 1 天 |
+| **P0** | BERT模型推理 | 单元测试 + 集成测试 | 第 1 天 |
 | **P0** | OCR 文字识别 | 单元测试 + API 集成 | 第 1-2 天 |
 | **P0** | 端到端流程 | 图片→文本→情感分析 | 第 2 天 |
-| **P1** | ASR 语音识别 | 功能验证（如有实现） | 第 3 天 |
-| **P1** | 视频处理 | 功能验证（如有实现） | 第 3 天 |
-| **P2** | Web 界面 | 手动测试为主 | 第 4 天 |
-| **P2** | 性能测试 | 关键路径基准测试 | 第 4 天 |
+| **P0** | **单条文本分析** | **功能测试 + 界面测试** | **第 2-3 天** |
+| **P0** | **批量文本分析** | **功能测试 + 性能测试** | **第 3 天** |
+| **P1** | ASR 语音识别 | 功能验证（如有实现） | 第 4 天 |
+| **P1** | 视频处理 | 功能验证（如有实现） | 第 4 天 |
+| **P2** | Web 界面 | 手动测试为主 | 第 4-5 天 |
+| **P2** | 性能测试 | 关键路径基准测试 | 第 5 天 |
 | **P3** | 兼容性测试 | 基础环境验证 | 第 5 天 |
 
 ### 1.3 测试策略调整
@@ -80,9 +82,12 @@ FZU_SentimentAnalysis/
 │   │   └── test_video_processor.py # 视频测试（P1，可选）
 │   ├── integration/                # 集成测试
 │   │   ├── __init__.py
-│   │   └── test_multimodal_pipeline.py  # ⭐ 端到端测试（P0）
+│   │   ├── test_single_text_analysis.py  # ⭐ 单条文本分析测试（P0）
+│   │   ├── test_batch_analysis.py        # ⭐ 批量文本分析测试（P0）
+│   │   └── test_multimodal_pipeline.py   # ⭐ 端到端测试（P0）
 │   └── fixtures/                   # 测试数据
 │       ├── sample_images/          # 测试图片
+│       ├── sample_csv/             # 测试 CSV 文件
 │       ├── sample_audio/           # 测试音频（可选）
 │       └── sample_video/           # 测试视频（可选）
 ```
@@ -283,13 +288,13 @@ class TestOcrProcessor:
 
 ---
 
-### 🗓️ 第 2 天：集成测试（端到端流程）
+### 🗓️ 第 2 天：集成测试（端到端流程 + 单条文本分析）
 
-**目标**: 验证"图片→OCR→文本→情感分析"完整流程
+**目标**: 验证"图片→OCR→文本→情感分析"完整流程，完成单条文本分析功能测试
 
 #### 上午（9:00-12:00）
 
-**任务 2.1**: 编写集成测试用例 (3 小时)
+**任务 2.1**: 编写集成测试用例 (2 小时)
 
 ```python
 """
@@ -346,33 +351,388 @@ class TestMultimodalPipeline:
         assert text.strip() == ""
 ```
 
-#### 下午（14:00-18:00）
+**任务 2.2**: 编写单条文本分析测试用例 (2 小时)
 
-**任务 2.2**: 执行集成测试 (2 小时)
-- [ ] 运行所有集成测试用例
-- [ ] 记录测试结果
-- [ ] 分析失败原因（如有）
+```python
+"""
+单条文本分析功能测试 - 核心业务逻辑测试
+"""
+import pytest
+from src.model_handler import EmotionModelHandler
+from src.utils.text_processing import split_chinese_sentences
+from src.utils.data_validation import validate_input_text
 
-**任务 2.3**: Bug 修复和回归测试 (2 小时)
-- [ ] 修复 P0 级 Bug
-- [ ] 重新运行失败的测试
-- [ ] 更新测试文档
+class TestSingleTextAnalysis:
+    """单条文本分析功能测试类"""
+    
+    def test_standard_positive_input(self, loaded_model):
+        """测试标准正面情感输入"""
+        text = "今天收到生日礼物，超级开心！"
+        result = loaded_model.predict(text)
+        
+        assert result["fine_name"] == "开心"
+        assert result["coarse"] == "正面"
+        assert result["confidence"] > 0.6
+        assert "all_probabilities" in result
+        assert "top3" in result
+    
+    def test_standard_negative_input(self, loaded_model):
+        """测试标准负面情感输入"""
+        text = "听到亲人去世的消息，我悲痛欲绝。"
+        result = loaded_model.predict(text)
+        
+        assert result["coarse"] == "负面"
+        assert result["fine_name"] in ["悲伤", "恐惧"]
+    
+    def test_standard_neutral_input(self, loaded_model):
+        """测试标准中性情感输入"""
+        text = "突然接到一个陌生电话，有点惊讶。"
+        result = loaded_model.predict(text)
+        
+        assert result["fine_name"] == "惊讶"
+        assert result["coarse"] == "中性"
+    
+    def test_short_text_input(self, loaded_model):
+        """测试极短文本输入"""
+        short_texts = ["好", "棒", "赞"]
+        
+        for text in short_texts:
+            result = loaded_model.predict(text)
+            assert result is not None
+            assert "fine_name" in result
+    
+    def test_long_text_input(self, loaded_model):
+        """测试长文本输入（超过 max_length）"""
+        long_text = "今天心情很好，" * 100  # 远超 512 tokens
+        result = loaded_model.predict(long_text)
+        
+        # 应该能正常处理（被截断）
+        assert result is not None
+        assert "fine_name" in result
+    
+    def test_mixed_emotion_input(self, loaded_model):
+        """测试混合情感输入"""
+        text = "虽然下雨了有些扫兴，但和朋友聊天还是很开心。"
+        result = loaded_model.predict(text)
+        
+        assert result is not None
+        # 混合情感应根据模型训练偏向判断
+    
+    def test_special_characters_input(self, loaded_model):
+        """测试特殊字符输入"""
+        text = "今天心情真好！！！😄😄😄"
+        result = loaded_model.predict(text)
+        
+        assert result is not None
+        assert result["fine_name"] == "开心"
+    
+    def test_sentence_splitting(self):
+        """测试中文句子分割功能"""
+        text = "今天天气真好。我和朋友去公园玩了。我们玩得很开心！"
+        sentences = split_chinese_sentences(text)
+        
+        assert len(sentences) >= 2
+        assert isinstance(sentences, list)
+        for sent in sentences:
+            assert len(sent.strip()) > 0
+    
+    def test_input_validation_valid(self):
+        """测试输入验证（有效输入）"""
+        valid_texts = [
+            "你好",
+            "今天心情很好",
+            "这是一段测试文本"
+        ]
+        
+        for text in valid_texts:
+            assert validate_input_text(text) is True
+    
+    def test_input_validation_invalid(self):
+        """测试输入验证（无效输入）"""
+        invalid_inputs = [
+            "",           # 空字符串
+            "   ",        # 纯空格
+            None,         # None 值
+        ]
+        
+        for text in invalid_inputs:
+            try:
+                validate_input_text(text)
+                assert False, f"应该抛出异常：{text}"
+            except (ValueError, TypeError):
+                pass  # 预期行为
+    
+    def test_result_format(self, loaded_model):
+        """测试结果格式完整性"""
+        text = "测试文本"
+        result = loaded_model.predict(text)
+        
+        # 验证结果包含所有必需字段
+        required_fields = [
+            "fine_id",
+            "fine_name",
+            "coarse",
+            "confidence",
+            "all_probabilities",
+            "top3"
+        ]
+        
+        for field in required_fields:
+            assert field in result, f"缺少必需字段：{field}"
+        
+        # 验证数据类型
+        assert isinstance(result["fine_id"], int)
+        assert isinstance(result["fine_name"], str)
+        assert isinstance(result["coarse"], str)
+        assert isinstance(result["confidence"], float)
+        assert isinstance(result["all_probabilities"], dict)
+        assert isinstance(result["top3"], list)
+    
+    def test_probability_distribution(self, loaded_model):
+        """测试概率分布合理性"""
+        text = "测试文本"
+        result = loaded_model.predict(text)
+        
+        probs = result["all_probabilities"]
+        
+        # 所有概率之和应接近 1
+        total = sum(probs.values())
+        assert 0.99 <= total <= 1.01, f"概率和不为 1: {total}"
+        
+        # 每个概率应在 0-1 之间
+        for prob in probs.values():
+            assert 0 <= prob <= 1, f"概率超出范围：{prob}"
+        
+        # top3 应按降序排列
+        top3 = result["top3"]
+        assert len(top3) == 3
+        for i in range(len(top3) - 1):
+            assert top3[i][1] >= top3[i+1][1], "top3 未按降序排列"
+```
 
 **第 2 天交付物**:
 - ✅ 集成测试用例 4 个
+- ✅ 单条文本分析测试用例 12 个
 - ✅ 端到端流程验证通过
 - ✅ Bug 列表和修复记录
 - ✅ 第 2 天测试报告
 
 ---
 
-### 🗓️ 第 3 天：ASR/视频模块测试（可选功能）
+### 🗓️ 第 3 天：批量文本分析 + ASR/视频模块测试
 
-**目标**: 根据 ASR/视频模块实现情况，进行功能验证
+**目标**: 完成批量文本分析功能测试，根据 ASR/视频模块实现情况进行功能验证
 
-#### 场景 A: ASR/视频已实现
+#### 上午（9:00-12:00）
 
-**上午**: ASR 模块测试
+**任务 3.1**: 编写批量文本分析测试用例 (3 小时)
+
+```python
+"""
+批量文本分析功能测试 - 核心业务逻辑测试
+"""
+import pytest
+import pandas as pd
+from pathlib import Path
+from src.model_handler import EmotionModelHandler
+from src.utils.file_io import read_csv_file, write_csv_file
+
+class TestBatchAnalysis:
+    """批量文本分析功能测试类"""
+    
+    @pytest.fixture
+    def sample_csv_path(self, tmp_path):
+        """准备测试用 CSV 文件"""
+        csv_content = """text
+今天心情很好
+我很难过
+太不可思议了
+这个产品真棒
+我对结果很失望
+"""
+        csv_file = tmp_path / "test_batch.csv"
+        csv_file.write_text(csv_content, encoding='utf-8')
+        return csv_file
+    
+    def test_csv_file_reading(self, sample_csv_path):
+        """测试 CSV 文件读取功能"""
+        df = read_csv_file(str(sample_csv_path))
+        
+        assert df is not None
+        assert 'text' in df.columns
+        assert len(df) == 5
+        assert isinstance(df['text'].iloc[0], str)
+    
+    def test_batch_prediction_basic(self, loaded_model, sample_csv_path):
+        """测试基本批量预测功能"""
+        df = read_csv_file(str(sample_csv_path))
+        texts = df['text'].tolist()
+        
+        results = loaded_model.predict_batch(texts)
+        
+        assert len(results) == len(texts)
+        for result in results:
+            assert "fine_name" in result
+            assert "coarse" in result
+            assert "confidence" in result
+    
+    def test_batch_prediction_with_dataframe(self, loaded_model, sample_csv_path):
+        """测试带 DataFrame 的批量预测"""
+        df = read_csv_file(str(sample_csv_path))
+        texts = df['text'].tolist()
+        
+        results = loaded_model.predict_batch(texts)
+        
+        # 将结果添加到 DataFrame
+        df['fine_emotion'] = [r['fine_name'] for r in results]
+        df['coarse_emotion'] = [r['coarse'] for r in results]
+        df['confidence'] = [r['confidence'] for r in results]
+        
+        assert 'fine_emotion' in df.columns
+        assert 'coarse_emotion' in df.columns
+        assert 'confidence' in df.columns
+        assert len(df) == 5
+    
+    def test_large_batch_processing(self, loaded_model, tmp_path):
+        """测试大批量数据处理"""
+        # 创建包含 100 条文本的 CSV
+        texts = [f"这是第{i}条测试文本"] * 100
+        df = pd.DataFrame({'text': texts})
+        csv_file = tmp_path / "large_batch.csv"
+        df.to_csv(csv_file, index=False, encoding='utf-8')
+        
+        # 读取并处理
+        df_loaded = read_csv_file(str(csv_file))
+        results = loaded_model.predict_batch(df_loaded['text'].tolist())
+        
+        assert len(results) == 100
+    
+    def test_csv_writing(self, tmp_path):
+        """测试 CSV 文件写入功能"""
+        df = pd.DataFrame({
+            'text': ['文本 1', '文本 2'],
+            'emotion': ['开心', '悲伤']
+        })
+        
+        output_file = tmp_path / "output.csv"
+        write_csv_file(df, str(output_file))
+        
+        assert output_file.exists()
+        
+        # 验证写入内容
+        df_loaded = pd.read_csv(output_file, encoding='utf-8')
+        assert len(df_loaded) == 2
+        assert 'text' in df_loaded.columns
+        assert 'emotion' in df_loaded.columns
+    
+    def test_empty_csv_handling(self, loaded_model, tmp_path):
+        """测试空 CSV 文件处理"""
+        csv_content = "text\n"
+        csv_file = tmp_path / "empty.csv"
+        csv_file.write_text(csv_content, encoding='utf-8')
+        
+        df = read_csv_file(str(csv_file))
+        
+        if len(df) == 0:
+            # 空文件应返回空 DataFrame 或适当错误
+            results = loaded_model.predict_batch([])
+            assert len(results) == 0
+    
+    def test_csv_missing_column_error(self, tmp_path):
+        """测试 CSV 缺少 text 列的错误处理"""
+        csv_content = """content
+今天心情很好
+"""
+        csv_file = tmp_path / "wrong_format.csv"
+        csv_file.write_text(csv_content, encoding='utf-8')
+        
+        df = read_csv_file(str(csv_file))
+        
+        # 应该没有'text'列
+        assert 'text' not in df.columns
+    
+    def test_batch_result_statistics(self, loaded_model, sample_csv_path):
+        """测试批量结果的统计信息"""
+        df = read_csv_file(str(sample_csv_path))
+        texts = df['text'].tolist()
+        results = loaded_model.predict_batch(texts)
+        
+        # 统计各类情感数量
+        emotion_counts = {}
+        for result in results:
+            emotion = result['fine_name']
+            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
+        
+        # 验证统计结果
+        assert sum(emotion_counts.values()) == len(results)
+        assert len(emotion_counts) > 0
+    
+    def test_batch_performance_baseline(self, loaded_model):
+        """测试批量处理性能基线"""
+        import time
+        
+        texts = ["测试文本"] * 50
+        
+        start = time.perf_counter()
+        results = loaded_model.predict_batch(texts)
+        end = time.perf_counter()
+        
+        total_time = end - start
+        avg_time_per_text = (total_time / len(texts)) * 1000  # 毫秒
+        
+        assert len(results) == 50
+        # 平均每条处理时间应小于 500ms（保守估计）
+        assert avg_time_per_text < 500, f"批量处理性能不达标：{avg_time_per_text}ms/条"
+        
+        print(f"✓ 批量处理性能：{avg_time_per_text:.2f}ms/条")
+    
+    def test_diverse_emotion_distribution(self, loaded_model):
+        """测试多样化情感分布"""
+        # 准备包含不同情感的文本
+        texts = [
+            "今天收到礼物很开心",      # 开心
+            "听到噩耗我悲痛欲绝",      # 悲伤
+            "这个结果让我很生气",      # 生气
+            "突如其来的消息让我惊讶",  # 惊讶
+            "我害怕面对这个挑战",      # 恐惧
+            "这种行为让我厌恶"        # 厌恶
+        ]
+        
+        results = loaded_model.predict_batch(texts)
+        
+        # 验证每种情感都被正确识别
+        emotions = [r['fine_name'] for r in results]
+        
+        # 至少应识别出 4 种不同的情感
+        unique_emotions = set(emotions)
+        assert len(unique_emotions) >= 4, f"情感识别过于单一：{unique_emotions}"
+    
+    def test_concurrent_batch_processing(self, loaded_model):
+        """测试并发批量处理（可选，高级功能）"""
+        import concurrent.futures
+        
+        texts_list = [
+            ["文本 1", "文本 2"],
+            ["文本 3", "文本 4"],
+            ["文本 5", "文本 6"]
+        ]
+        
+        def process_batch(texts):
+            return loaded_model.predict_batch(texts)
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [executor.submit(process_batch, texts) for texts in texts_list]
+            all_results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        
+        # 验证所有批次都处理完成
+        assert len(all_results) == 3
+        for results in all_results:
+            assert len(results) == 2
+```
+
+#### 下午（14:00-18:00）
+
+**任务 3.2**: ASR 模块测试（如已实现）
 ```python
 """
 ASR 测试用例（如已实现）
@@ -392,7 +752,7 @@ class TestAsrProcessor:
         pass
 ```
 
-**下午**: 视频模块测试
+**任务 3.3**: 视频模块测试（如已实现）
 ```python
 """
 视频处理测试用例（如已实现）
@@ -414,20 +774,22 @@ class TestVideoProcessor:
 
 #### 场景 B: ASR/视频未实现
 
-**替代方案**: 加强现有功能测试
+**替代方案**: 加强单条和批量分析功能测试
 
-**上午**: 补充边界条件测试
-- [ ] 增加模型边界测试用例（长文本、特殊字符等）
-- [ ] 增加 OCR 复杂场景测试（模糊图片、手写体等）
+**下午**: 补充边界条件和异常场景测试
+- [ ] 增加模型边界测试用例（极端长度文本、特殊符号等）
+- [ ] 增加批量处理异常测试（损坏的 CSV、编码问题等）
+- [ ] 增加 OCR 复杂场景测试（模糊图片、手写体、多语言混合等）
 
-**下午**: 文档完善和代码审查
+**任务 3.4**: 文档完善和代码审查 (2 小时)
 - [ ] 审查现有测试代码质量
 - [ ] 补充测试用例注释
 - [ ] 整理测试数据
 
 **第 3 天交付物**:
+- ✅ 批量文本分析测试用例 12 个
 - ✅ ASR/视频测试用例（如已实现）
-- ✅ 或：边界测试补充用例
+- ✅ 或：边界测试补充用例 5+
 - ✅ 测试代码审查记录
 - ✅ 第 3 天测试总结
 
@@ -611,11 +973,11 @@ class TestPerformance:
 | 日期 | 用例总数 | 通过数 | 失败数 | 阻塞数 | 覆盖率 | Bug 数 |
 |-----|---------|-------|-------|-------|-------|-------|
 | 第 1 天 | 11 | - | - | - | - | - |
-| 第 2 天 | 15 | - | - | - | - | - |
-| 第 3 天 | 15+ | - | - | - | - | - |
-| 第 4 天 | 18+ | - | - | - | - | - |
-| 第 5 天 | 18+ | - | - | - | - | - |
-| **总计** | **18+** | **-** | **-** | **-** | **>70%** | **-** |
+| 第 2 天 | 27 | - | - | - | - | - |
+| 第 3 天 | 39+ | - | - | - | - | - |
+| 第 4 天 | 42+ | - | - | - | - | - |
+| 第 5 天 | 42+ | - | - | - | - | - |
+| **总计** | **42+** | **-** | **-** | **-** | **>70%** | **-** |
 
 ### 4.2 缺陷管理（简化版）
 
@@ -799,6 +1161,7 @@ touch tests/__init__.py tests/conftest.py pytest.ini
 
 **Step 4**: 准备测试数据（30 分钟）
 - 准备 3 张测试图片（正面/负面/中性文字）
+- 准备 2 个测试 CSV 文件（小批量/大批量）
 - 准备模型文件（确保在 `models/emotion_model/` 目录）
 
 **Step 5**: 运行测试（5 分钟）
@@ -868,26 +1231,28 @@ pytest --exitfirst  # 同上
 
 ### 7.1 最低成功标准（必须达成）
 
-- ✅ 完成 15 个核心测试用例
+- ✅ 完成 30 个核心测试用例（模型 6+ OCR 5+ 单条 12+ 批量 7）
 - ✅ 代码覆盖率>70%
 - ✅ 无 P0 级缺陷
-- ✅ 核心功能可正常使用
+- ✅ 核心功能可正常使用（单条分析、批量分析、OCR 识别）
 
 ### 7.2 理想成功标准（努力达成）
 
-- ✅ 完成 20+ 测试用例
+- ✅ 完成 40+ 测试用例
 - ✅ 代码覆盖率>80%
 - ✅ 无 P1 级缺陷
 - ✅ 性能指标全部达标
 - ✅ 用户验收满意度>4.5/5.0
+- ✅ **单条文本分析和批量文本分析功能稳定可用**
 
 ### 7.3 优秀成功标准（挑战目标）
 
-- ✅ 完成 25+ 测试用例
+- ✅ 完成 50+ 测试用例
 - ✅ 代码覆盖率>85%
 - ✅ 所有缺陷已修复或有计划
 - ✅ 输出完整测试文档
 - ✅ 建立自动化测试流水线
+- ✅ **形成完整的单条 + 批量 + 多模态测试体系**
 
 ---
 
@@ -931,11 +1296,40 @@ tests/fixtures/
 ├── sample_images/
 │   ├── test_happy.jpg      # 正面文字："今天心情很好"
 │   ├── test_sad.jpg        # 负面文字："我很难过"
-│   └── test_neutral.jpg    # 中性文字："这是真的吗？"
+│   ├── test_neutral.jpg    # 中性文字："这是真的吗？"
+│   └── test_empty.jpg      # 空白图片
+├── sample_csv/
+│   ├── small_batch.csv     # 小批量：5-10 条文本
+│   ├── large_batch.csv     # 大批量：50-100 条文本
+│   ├── diverse_emotions.csv # 多样情感：包含 6 种情感
+│   └── edge_cases.csv      # 边界情况：空行、特殊字符等
 ├── sample_audio/           # 可选
 │   └── test.wav
 └── sample_video/           # 可选
     └── test.mp4
+```
+
+**CSV 文件格式示例**:
+
+small_batch.csv:
+```csv
+text
+今天心情很好
+我很难过
+太不可思议了
+这个产品真棒
+我对结果很失望
+```
+
+diverse_emotions.csv:
+```csv
+text
+今天收到礼物很开心
+听到噩耗我悲痛欲绝
+这个结果让我很生气
+突如其来的消息让我惊讶
+我害怕面对这个挑战
+这种行为让我厌恶
 ```
 
 ### 8.3 参考资源
@@ -961,10 +1355,11 @@ tests/fixtures/
 - 🎯 灵活调整，根据实际情况动态优化
 
 **预期成果**:
-- ✅ 15-25 个高质量测试用例
+- ✅ 40-50 个高质量测试用例
 - ✅ 70%-85% 代码覆盖率
 - ✅ 无严重缺陷
 - ✅ 完整测试报告
+- ✅ **单条文本分析和批量文本分析功能经过充分验证**
 
 相信通过 5 天的集中攻关，一定能为项目交付提供**坚实的质量保障**!
 
