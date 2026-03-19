@@ -81,7 +81,7 @@ if not st.session_state.model_loaded:
 # ------------------------------------------
 # 侧边栏导航
 # ------------------------------------------
-PAGES = ["单条文本分析", "批量文本分析", "关于系统"]
+PAGES = ["单条文本分析", "批量文本分析", "多模态分析", "关于系统"]
 if "page" not in st.session_state:
     st.session_state.page = PAGES[0]
 
@@ -108,6 +108,10 @@ with st.sidebar:
         st.session_state.page = "批量文本分析"
         st.rerun()
 
+    if st.button("多模态分析", use_container_width=True, disabled=(st.session_state.page == "多模态分析")):
+        st.session_state.page = "多模态分析"
+        st.rerun()
+
     if st.button("关于系统", use_container_width=True, disabled=(st.session_state.page == "关于系统")):
         st.session_state.page = "关于系统"
         st.rerun()
@@ -130,6 +134,7 @@ def load_page_module(page_name: str):
     file_map = {
         "单条文本分析": "1_单条文本分析.py",
         "批量文本分析": "2_批量文本分析.py",
+        "多模态分析": "4_多模态分析.py",
         "关于系统": "3_关于系统.py",
     }
     
