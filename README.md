@@ -27,6 +27,8 @@
 ```
 FZU_SentimentAnalysis/
 ├── app.py                  # Streamlit 入口文件（仅包含页面配置和侧边栏导航）
+├── config/                 # 配置目录（包含 OCR 私密配置模板）
+│   └── ocr_secrets.example.toml  # OCR 私密配置模板（复制为 ocr_secrets.toml 后填写真实密钥；真实文件不提交）
 ├── pages/                  # Streamlit 多页面目录
 │   ├── 1_单条文本分析.py    # 单条文本分析页面
 │   ├── 2_批量文本分析.py    # 批量文本分析页面
@@ -71,6 +73,20 @@ FZU_SentimentAnalysis/
 ```bash
 pip install -r requirements.txt
 ```
+
+### 2.1 OCR（可选）私密配置
+
+如果你要使用 OCR 能力（`src/utils/ocr_processor.py`），请：
+
+1. 复制模板文件：
+
+```bash
+copy config\\ocr_secrets.example.toml config\\ocr_secrets.toml
+```
+
+2. 打开 `config/ocr_secrets.toml` 填入你的密钥。
+
+说明：`config/ocr_secrets.toml` 已加入 `.gitignore`，不会被提交到仓库。
 
 ### 3. 准备模型
 将训练好的模型文件放置在 `models/emotion_model/` 目录下，应包含：

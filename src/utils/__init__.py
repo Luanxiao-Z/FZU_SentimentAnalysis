@@ -35,6 +35,8 @@ from .emotion_utils import (
     get_coarse_badge_class,
 )
 
+from .ocr_processor import extract_text_from_image, OcrError
+
 __all__ = [
     # 文件 I/O
     'load_css',
@@ -59,4 +61,8 @@ __all__ = [
     # 情感工具
     'emotion_id_by_name',
     'get_coarse_badge_class',
+
+    # OCR
+    'extract_text_from_image',
+    'OcrError',
 ]
