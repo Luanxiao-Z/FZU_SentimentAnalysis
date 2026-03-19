@@ -111,11 +111,21 @@ def _load_settings(*, config_path: str | Path | None) -> OcrSettings:
 
     try:
         import tomllib  # py3.11+
-    except Exception as e:  # pragma: no cover
-        raise OcrError("当前 Python 不支持 tomllib，无法读取 TOML 配置。", details=str(e)) from e
 
-    try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except ModuleNotFoundError:
+        # py3.10 兼容：使用第三方 tomli
+        try:
+            import tomli  # type: ignore
+        except Exception as e:
+            raise OcrError(
+                "当前 Python 不支持 tomllib，且未安装 tomli。请执行：pip install tomli",
+                details=str(e),
+            ) from e
+        try:
+            data = tomli.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            raise OcrError("读取 OCR 配置失败（TOML 格式可能有误）。", details=str(e)) from e
     except Exception as e:
         raise OcrError("读取 OCR 配置失败（TOML 格式可能有误）。", details=str(e)) from e
 
