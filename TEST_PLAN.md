@@ -78,11 +78,7 @@ FZU_SentimentAnalysis/
 │   │   ├── __init__.py
 │   │   ├── test_model_handler.py   # ⭐ 模型测试（P0）
 │   │   ├── test_ocr_processor.py   # ⭐ OCR 测试（P0）
-<<<<<<< HEAD
-│   │   ├── test_asr_processor.py   # ASR 自测（已合并，含离线切片/标准化与可选真实 ASR）
-=======
 │   │   ├── test_asr_processor.py   # ASR 测试（P1，可选）
->>>>>>> 69cfb9122c0350335668da90801e602d356c2021
 │   │   └── test_video_processor.py # 视频测试（P1，可选）
 │   ├── integration/                # 集成测试
 │   │   ├── __init__.py
