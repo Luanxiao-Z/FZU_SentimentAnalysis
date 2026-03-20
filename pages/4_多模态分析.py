@@ -1,4 +1,7 @@
 import streamlit as st
+import os
+import shutil
+import tempfile
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -11,6 +14,8 @@ from src.utils import (
     extract_text_from_docx,
     extract_text_from_md,
     extract_text_from_txt,
+    extract_text_from_image,
+    audio_to_text,
 )
 
 
@@ -54,11 +59,25 @@ def _preview_uploaded_file(f) -> None:
         st.image(f, use_container_width=True, caption=name)
         return
     if _file_is_audio(name):
-        st.audio(f, format=_guess_audio_format(name), start_time=0)
+        try:
+            if hasattr(f, "seek"):
+                f.seek(0)
+            data = f.read()
+        except Exception:
+            data = f
+        st.audio(data, format=_guess_audio_format(name), start_time=0)
         st.caption(f"{name}")
         return
     if _file_is_video(name):
-        st.video(f)
+        try:
+            if hasattr(f, "seek"):
+                f.seek(0)
+            data = f.read()
+        except Exception:
+            data = f
+
+        # 显式指定 MIME 类型，提高兼容性（部分浏览器/编解码下不显式会失败）
+        st.video(data, format=_guess_video_format(name))
         st.caption(f"{name}")
         return
     if _file_is_text_doc(name):
@@ -75,6 +94,20 @@ def _guess_audio_format(name: str) -> str:
         if name.endswith(ext):
             return ext.replace(".", "")
     return "audio"
+
+
+def _guess_video_format(name: str) -> str:
+    name = (name or "").lower()
+    for ext, mime in [
+        (".mp4", "video/mp4"),
+        (".webm", "video/webm"),
+        (".mov", "video/quicktime"),
+        (".mkv", "video/x-matroska"),
+        (".avi", "video/x-msvideo"),
+    ]:
+        if name.endswith(ext):
+            return mime
+    return "video/mp4"
 
 
 def _extract_text_from_uploaded_docs(files: list) -> str:
@@ -119,6 +152,74 @@ def _extract_text_from_uploaded_docs(files: list) -> str:
         else:
             # 其它情况略过
             pass
+
+    return "\n\n".join([t for t in extracted if t.strip()])
+
+
+def _extract_text_from_uploaded_media(files: list) -> str:
+    """
+    把上传的“图片/音频/视频”自动抽成文本（供后续情感分析）。
+
+    - 图片：OCR
+    - 音频：ASR（长音频会在后端内部切片）
+    - 视频：提取音轨 -> ASR
+    """
+    extracted: list[str] = []
+    for f in files:
+        name = getattr(f, "name", "").lower()
+        if not name:
+            continue
+
+        try:
+            if _file_is_image(name):
+                text = extract_text_from_image(f, preprocess=True, lang="CHN_ENG")
+                text = (text or "").strip()
+                if text:
+                    extracted.append(text)
+                continue
+
+            if _file_is_audio(name):
+                ext = os.path.splitext(name)[1].lower()
+                text = audio_to_text(f, input_suffix_hint=ext if ext else None)
+                text = (text or "").strip()
+                if text:
+                    extracted.append(text)
+                continue
+
+            if _file_is_video(name):
+                ext = os.path.splitext(name)[1].lower() or ".mp4"
+
+                # Streamlit UploadedFile 是内存/临时流：视频转写需要落盘路径
+                if hasattr(f, "seek"):
+                    f.seek(0)
+                data = f.read()
+                if isinstance(data, str):
+                    data = data.encode("utf-8")
+
+                tmp_dir = tempfile.mkdtemp(prefix="multi_video_upload_")
+                video_path = os.path.join(tmp_dir, f"input{ext}")
+                try:
+                    with open(video_path, "wb") as fp:
+                        fp.write(data)
+
+                    # 这里按需导入，避免 moviepy/ffmpeg 未安装导致页面整体崩溃
+                    try:
+                        from src.utils.video_processor import video_to_transcript
+                    except Exception as e:
+                        raise RuntimeError(
+                            "视频转写依赖缺失：请安装 `moviepy` 并确保系统可用 `ffmpeg`。"
+                        ) from e
+
+                    text = video_to_transcript(video_path, cleanup_audio=True)
+                    text = (text or "").strip()
+                    if text:
+                        extracted.append(text)
+                finally:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+                continue
+
+        except Exception as e:
+            st.warning(f"自动文本提取失败：{getattr(f, 'name', 'unknown')}，错误：{e}")
 
     return "\n\n".join([t for t in extracted if t.strip()])
 
@@ -323,8 +424,8 @@ def _render_upload_interface(handler):
         st.markdown(
             """
             <div class='muted' style='margin-bottom:10px;'>
-            支持多格式文件上传并预览：图片直接渲染，音频/视频使用播放器；文档（PDF/TXT/DOCX/MD）可提取文本并进行情感分析。
-            对于图片/音频/视频，也可以在下方手动粘贴 OCR/转写文本后再分析。
+            支持多格式文件上传并预览：图片直接渲染，音频/视频使用播放器；文档（PDF/TXT/DOCX/MD）可直接提取文本。
+            图片/音频/视频也会自动走 OCR/ASR/转写生成文本用于情感分析。
             </div>
             """,
             unsafe_allow_html=True,
@@ -365,7 +466,7 @@ def _render_upload_interface(handler):
             auto_text = _extract_text_from_uploaded_docs(valid_files)
 
         override_text = st.text_area(
-            "（可选）如果你上传的是图片/音频/视频，请在这里粘贴 OCR/转写文本；如果上传的是文档，此处会自动填充提取结果。",
+            "（可选）自动填充文档提取文本；如需修改可在此处覆盖。",
             value=auto_text,
             height=200,
             label_visibility="collapsed",
@@ -386,11 +487,17 @@ def _render_upload_interface(handler):
         with action_right:
             if run_btn:
                 combined_text = (override_text or "").strip()
-                if not combined_text:
-                    st.warning("请先上传文档，或在文本框粘贴 OCR/转写文本后再分析。")
-                    st.stop()
 
-                with st.spinner("正在提取/拆句并进行情感分析..."):
+                with st.spinner("正在提取多模态文本并拆句进行情感分析..."):
+                    # 额外为图片/音频/视频自动抽取文本（不重复处理文档）
+                    media_text = _extract_text_from_uploaded_media(valid_files)
+                    if media_text.strip():
+                        combined_text = f"{combined_text}\n\n{media_text}".strip() if combined_text else media_text.strip()
+
+                    if not combined_text:
+                        st.warning("未提取到可分析文本。请上传文档，或上传可识别的图片/音频/视频。")
+                        st.stop()
+
                     result_df = _run_multimodal_analysis(handler, combined_text, max_sentences=max_sentences)
                     if result_df is None or result_df.empty:
                         st.warning("分析结果为空，请检查输入文本。")
