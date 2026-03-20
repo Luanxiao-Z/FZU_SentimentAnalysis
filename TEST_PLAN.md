@@ -85,6 +85,10 @@ FZU_SentimentAnalysis/
 │   │   ├── test_single_text_analysis.py  # ⭐ 单条文本分析测试（P0）
 │   │   ├── test_batch_analysis.py        # ⭐ 批量文本分析测试（P0）
 │   │   └── test_multimodal_pipeline.py   # ⭐ 端到端测试（P0）
+│   ├── system/                     # 系统测试
+│   │   ├── __init__.py
+│   │   ├── test_web_interface.py    # Web 界面测试（P2）
+│   │   └── test_performance.py       # 性能测试（P2）
 │   └── fixtures/                   # 测试数据
 │       ├── sample_images/          # 测试图片
 │       ├── sample_csv/             # 测试 CSV 文件
@@ -1251,7 +1255,7 @@ pytest --exitfirst  # 同上
 - ✅ 代码覆盖率>85%
 - ✅ 所有缺陷已修复或有计划
 - ✅ 输出完整测试文档
-- ✅ 建立自动化测试流水线
+- ✅ 立自动化测试流水线
 - ✅ **形成完整的单条 + 批量 + 多模态测试体系**
 
 ---
