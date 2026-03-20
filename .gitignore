@@ -2,9 +2,5 @@
 __pycache__/
 *.py[cod]
 *$py.class
-<<<<<<< HEAD
 config/ocr_secrets.toml
 config/asr_secrets.toml
-=======
-config/ocr_secrets.toml
->>>>>>> 69cfb9122c0350335668da90801e602d356c2021
