@@ -10,13 +10,15 @@
 import os
 import shutil
 import subprocess
+from typing import Optional
+
 from moviepy.editor import VideoFileClip  # type: ignore
 import tempfile  # 用于处理临时文件
 
 
 def extract_audio_from_video(
     video_path: str,
-    audio_output_path: str | None = None,
+    audio_output_path: Optional[str] = None,
     codec: str = "pcm_s16le",
     sample_rate: int = 16000,
 ):
@@ -115,6 +117,7 @@ def video_to_transcript(
 
     audio_path = None
     try:
+        # 始终使用临时文件：由 tempfile 生成 wav，并在 finally 里按 cleanup_audio 规则删除
         audio_path = extract_audio_from_video(video_path, audio_output_path=None)
         transcript = asr_func(audio_path)
         if transcript is None:
@@ -142,7 +145,11 @@ def video_to_emotion(
     :param cleanup_audio: 是否清理临时音频
     :return: emotion_infer_func(transcript) 的结果；若未提供 emotion_infer_func，则返回 transcript
     """
-    transcript = video_to_transcript(video_path, asr_func=asr_func, cleanup_audio=cleanup_audio)
+    transcript = video_to_transcript(
+        video_path,
+        asr_func=asr_func,
+        cleanup_audio=cleanup_audio,
+    )
     if emotion_infer_func is None:
         return transcript
     return emotion_infer_func(transcript)
@@ -160,5 +167,5 @@ if __name__ == "__main__":
             # 仅用于演示：真实项目中请替换为你的 ASR 接口。
             return f"[dummy transcript from {os.path.basename(audio_path)}]"
 
-        text = video_to_transcript(test_video_path, asr_func=_dummy_asr)
+        text = video_to_transcript(test_video_path, asr_func=_dummy_asr, cleanup_audio=False)
         print(f"转录结果：{text}")
