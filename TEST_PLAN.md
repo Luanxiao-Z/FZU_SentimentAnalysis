@@ -27,15 +27,15 @@
 | **P0** | 端到端流程 | 图片→文本→情感分析 | 第 2 天 |
 | **P0** | **单条文本分析** | **功能测试 + 界面测试** | **第 2-3 天** |
 | **P0** | **批量文本分析** | **功能测试 + 性能测试** | **第 3 天** |
-| **P1** | ASR 语音识别 | 功能验证（如有实现） | 第 4 天 |
-| **P1** | 视频处理 | 功能验证（如有实现） | 第 4 天 |
+| **P1** | ASR 语音识别 | 功能验证 | 第 4 天 |
+| **P1** | 视频处理 | 功能验证 | 第 4 天 |
 | **P2** | Web 界面 | 手动测试为主 | 第 4-5 天 |
 | **P2** | 性能测试 | 关键路径基准测试 | 第 5 天 |
 | **P3** | 兼容性测试 | 基础环境验证 | 第 5 天 |
 
-### 1.3 测试策略调整
+### 1.3 测试策略
 
-**原计划**: 8 周全流程测试 → **现调整为**: 5 天敏捷测试
+ 5 天敏捷测试
 
 ```mermaid
 graph LR
@@ -78,8 +78,8 @@ FZU_SentimentAnalysis/
 │   │   ├── __init__.py
 │   │   ├── test_model_handler.py   # ⭐ 模型测试（P0）
 │   │   ├── test_ocr_processor.py   # ⭐ OCR 测试（P0）
-│   │   ├── test_asr_processor.py   # ASR 测试（P1，可选）
-│   │   └── test_video_processor.py # 视频测试（P1，可选）
+│   │   ├── test_asr_processor.py   # ASR 测试（P1）
+│   │   └── test_video_processor.py # 视频测试（P1）
 │   ├── integration/                # 集成测试
 │   │   ├── __init__.py
 │   │   ├── test_single_text_analysis.py  # ⭐ 单条文本分析测试（P0）
@@ -92,8 +92,8 @@ FZU_SentimentAnalysis/
 │   └── fixtures/                   # 测试数据
 │       ├── sample_images/          # 测试图片
 │       ├── sample_csv/             # 测试 CSV 文件
-│       ├── sample_audio/           # 测试音频（可选）
-│       └── sample_video/           # 测试视频（可选）
+│       ├── sample_audio/           # 测试音频
+│       └── sample_video/           # 测试视频
 ```
 
 ### 2.3 最小化配置文件
@@ -736,10 +736,10 @@ class TestBatchAnalysis:
 
 #### 下午（14:00-18:00）
 
-**任务 3.2**: ASR 模块测试（如已实现）
+**任务 3.2**: ASR 模块测试
 ```python
 """
-ASR 测试用例（如已实现）
+ASR 测试用例
 """
 import pytest
 
@@ -756,10 +756,10 @@ class TestAsrProcessor:
         pass
 ```
 
-**任务 3.3**: 视频模块测试（如已实现）
+**任务 3.3**: 视频模块测试
 ```python
 """
-视频处理测试用例（如已实现）
+视频处理测试用例
 """
 import pytest
 
@@ -792,7 +792,7 @@ class TestVideoProcessor:
 
 **第 3 天交付物**:
 - ✅ 批量文本分析测试用例 12 个
-- ✅ ASR/视频测试用例（如已实现）
+- ✅ ASR/视频测试用例
 - ✅ 或：边界测试补充用例 5+
 - ✅ 测试代码审查记录
 - ✅ 第 3 天测试总结
@@ -827,11 +827,11 @@ class TestVideoProcessor:
 - [ ] 结果 CSV 下载功能正常
 - [ ] 情感分布饼图显示正常
 
-### 多模态功能（如已实现）
+### 多模态功能
 - [ ] 图片上传功能正常
 - [ ] 图片 OCR 识别成功
 - [ ] 情感分析结果展示
-- [ ] 音频/视频上传（如有）
+- [ ] 音频/视频上传
 ```
 
 **任务 4.2**: 记录测试结果
