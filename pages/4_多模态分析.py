@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -123,7 +124,7 @@ def _extract_text_from_uploaded_docs(files: list) -> str:
 
 
 def _predict_and_visualize(handler, text: str, max_sentences: int):
-    """把输入文本拆句 -> 逐句预测 -> 分布/雷达图/表格可视化。"""
+    """(旧逻辑) 已保留但不再用于主流程。"""
     sentences = split_chinese_sentences(text)
     sentences = [s for s in sentences if s and s.strip()]
     if not sentences:
@@ -273,7 +274,49 @@ def _predict_and_visualize(handler, text: str, max_sentences: int):
 def render_page(handler):
     st.markdown("<div class='section-title'>🖼️ 多模态分析</div>", unsafe_allow_html=True)
 
-    # 外层整页卡片框线：复用批量页的 CSS 选择器（:has(.batch-uploader-wrap)）
+    if "multimodal_result_df" not in st.session_state:
+        st.session_state.multimodal_result_df = None
+
+    if st.session_state.multimodal_result_df is None:
+        _render_upload_interface(handler)
+    else:
+        _render_result_interface()
+
+
+def _run_multimodal_analysis(handler, combined_text: str, max_sentences: int) -> pd.DataFrame:
+    """把输入文本拆句 -> 逐句预测 -> 输出结果 DataFrame（不做可视化）。"""
+    sentences = split_chinese_sentences(combined_text)
+    sentences = [s for s in sentences if s and s.strip()]
+    if not sentences:
+        st.warning("未检测到可分析的中文句子。请检查输入文本。")
+        return pd.DataFrame()
+
+    sentences = sentences[:max_sentences]
+
+    progress_bar = st.progress(0.0)
+    status_placeholder = st.empty()
+
+    results = []
+    total = len(sentences)
+    for idx, s in enumerate(sentences):
+        r = handler.predict(s)
+        results.append(
+            {
+                "text": s,
+                "fine_name": r["fine_name"],
+                "coarse": r["coarse"],
+                "confidence": r["confidence"],
+                "all_probabilities": r["all_probabilities"],
+            }
+        )
+        progress_bar.progress((idx + 1) / total)
+        status_placeholder.write(f"正在分析 {idx + 1}/{total}：{r['fine_name']}")
+
+    return format_batch_results(results)
+
+
+def _render_upload_interface(handler):
+    # 外层整页卡片框线：复用批量页的 CSS 选择器
     with st.container(border=True):
         st.markdown('<div class="batch-uploader-wrap">', unsafe_allow_html=True)
 
@@ -286,9 +329,6 @@ def render_page(handler):
             """,
             unsafe_allow_html=True,
         )
-
-        if "multimodal_last_result_df" not in st.session_state:
-            st.session_state.multimodal_last_result_df = None
 
         uploaded_files = st.file_uploader(
             "上传多媒体文件（多模态支持：图片/音频/视频/文档）",
@@ -322,10 +362,8 @@ def render_page(handler):
 
         auto_text = ""
         if valid_files:
-            # 仅从文档类型抽取文本（截图要求不要求 OCR/ASR，因此这里仅对文档做自动抽取）
             auto_text = _extract_text_from_uploaded_docs(valid_files)
 
-        # 自动抽取出的文本 + 用户手动补充
         override_text = st.text_area(
             "（可选）如果你上传的是图片/音频/视频，请在这里粘贴 OCR/转写文本；如果上传的是文档，此处会自动填充提取结果。",
             value=auto_text,
@@ -353,7 +391,141 @@ def render_page(handler):
                     st.stop()
 
                 with st.spinner("正在提取/拆句并进行情感分析..."):
-                    _predict_and_visualize(handler, combined_text, max_sentences=max_sentences)
+                    result_df = _run_multimodal_analysis(handler, combined_text, max_sentences=max_sentences)
+                    if result_df is None or result_df.empty:
+                        st.warning("分析结果为空，请检查输入文本。")
+                        st.stop()
+                    st.session_state.multimodal_result_df = result_df
+                    st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _render_result_interface():
+    # 结果页也保持外框线效果
+    result_df = st.session_state.multimodal_result_df
+    if result_df is None or result_df.empty:
+        st.warning("当前没有可展示的分析结果。")
+        return
+
+    with st.container(border=True):
+        st.markdown('<div class="batch-uploader-wrap">', unsafe_allow_html=True)
+
+        top_row_left, top_row_right = st.columns([1, 0.15], gap="small")
+        with top_row_left:
+            st.markdown('<div class="card-title">结果展示</div>', unsafe_allow_html=True)
+        with top_row_right:
+            if st.button("返回上传界面", type="primary", use_container_width=True, key="back_to_upload_multi"):
+                st.session_state.multimodal_result_df = None
+                st.rerun()
+
+        # 上半部分：左右两个饼图
+        col_fine, col_coarse = st.columns([1.25, 1.0], gap="large")
+        with col_fine:
+            st.markdown("<div class='muted' style='margin-bottom:6px;'>细粒度情感分布</div>", unsafe_allow_html=True)
+            fine_counts = result_df["fine_emotion"].value_counts()
+            fig_pie = px.pie(
+                values=fine_counts.values,
+                names=fine_counts.index,
+                title="",
+                color=fine_counts.index,
+                color_discrete_map={EMOTION_STYLES[i]["name"]: EMOTION_STYLES[i]["color"] for i in range(6)},
+            )
+            fig_pie.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        with col_coarse:
+            st.markdown("<div class='muted' style='margin-bottom:6px;'>粗粒度情感分布</div>", unsafe_allow_html=True)
+            coarse_counts = result_df["coarse_emotion"].value_counts()
+            fig_coarse = px.pie(
+                values=coarse_counts.values,
+                names=coarse_counts.index,
+                title="",
+                color=coarse_counts.index,
+                color_discrete_map={"正面": "#2ecc71", "负面": "#e74c3c", "中性": "#95a5a6"},
+            )
+            fig_coarse.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", margin=dict(l=20, r=20, t=30, b=20))
+            st.plotly_chart(fig_coarse, use_container_width=True)
+
+        # 下半部分：平均概率雷达图 + 柱状图
+        categories = [EMOTION_STYLES[i]["name"] for i in range(6)]
+        avg_values = []
+        for c in categories:
+            col = f"prob_{c}"
+            if col in result_df.columns:
+                avg_values.append(float(result_df[col].mean()))
+            else:
+                avg_values.append(0.0)
+
+        col_radar, col_bar = st.columns([1, 1], gap="large")
+        with col_radar:
+            st.markdown("<div class='muted' style='margin-bottom:6px;'>平均情感概率（雷达图）</div>", unsafe_allow_html=True)
+            fig_radar = go.Figure()
+            accent = "#ef4444"
+            fig_radar.add_trace(
+                go.Scatterpolar(
+                    r=avg_values + [avg_values[0]],
+                    theta=categories + [categories[0]],
+                    mode="lines+markers",
+                    name="平均情感概率",
+                    line_color=accent,
+                    line_width=3,
+                    marker=dict(size=6, color=accent),
+                )
+            )
+            fig_radar.update_layout(
+                template="simple_white",
+                polar=dict(
+                    bgcolor="#ffffff",
+                    radialaxis=dict(visible=True, showgrid=True, range=[0, 1], dtick=0.2, gridcolor="#d1d5db", gridwidth=1.2),
+                    angularaxis=dict(showgrid=True, gridcolor="#e5e7eb", gridwidth=1.0),
+                ),
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                font=dict(size=13, color="#111827"),
+                showlegend=False,
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=20),
+            )
+            st.plotly_chart(fig_radar, use_container_width=True)
+
+        with col_bar:
+            st.markdown("<div class='muted' style='margin-bottom:6px;'>平均情感概率（柱状图）</div>", unsafe_allow_html=True)
+            color_map = {EMOTION_STYLES[i]["name"]: EMOTION_STYLES[i]["color"] for i in range(6)}
+            fig_bar = px.bar(
+                x=categories,
+                y=avg_values,
+                color=categories,
+                color_discrete_map=color_map,
+                labels={"x": "情感类别", "y": "概率"},
+            )
+            fig_bar.update_layout(
+                template="simple_white",
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                showlegend=False,
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=20),
+            )
+            fig_bar.update_traces(marker_line_width=0)
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        # 详细结果表 + 下载
+        st.markdown("<div class='card-title' style='margin-top:18px;'>详细结果</div>", unsafe_allow_html=True)
+        html_table = result_df.to_html(classes="result-table", index=False, border=0, justify="left", escape=False)
+        st.markdown(html_table, unsafe_allow_html=True)
+
+        csv = result_df.to_csv(index=False, encoding="utf-8-sig")
+        st.markdown('<div class="download-btn-wrap" style="text-align:right;margin-top:12px;">', unsafe_allow_html=True)
+        st.download_button(
+            label="下载结果",
+            data=csv,
+            file_name="multimodal_emotion_results.csv",
+            mime="text/csv",
+            key="download_multimodal_result",
+            type="primary",
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
