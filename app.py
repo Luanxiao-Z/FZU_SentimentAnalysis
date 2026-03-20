@@ -21,6 +21,12 @@ st.set_page_config(
 )
 
 # ------------------------------------------
+# 加载状态管理
+# ------------------------------------------
+if "model_loaded" not in st.session_state:
+    st.session_state.model_loaded = False
+
+# ------------------------------------------
 # 加载 CSS
 # ------------------------------------------
 css_path = ASSETS_DIR / 'style.css'
@@ -38,10 +44,39 @@ def get_model_handler():
     handler.load_model()
     return handler
 
-# 初始化模型
-if "handler" not in st.session_state:
-    with st.spinner('正在加载情感分析模型...'):
-        st.session_state.handler = get_model_handler()
+# 初始化模型并显示加载进度
+if not st.session_state.model_loaded:
+    # 创建加载界面容器
+    loading_container = st.container()
+    
+    with loading_container:
+        # 显示加载动画和文字
+        st.markdown("""
+        <div class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-spinner">
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                    <div class="spinner-ring"></div>
+                </div>
+                <div class="loading-text">正在初始化情感分析模型</div>
+                <div class="loading-subtext">首次加载可能需要几秒钟，请耐心等待...</div>
+                <div class="loading-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 加载模型
+        with st.spinner(''):
+            st.session_state.handler = get_model_handler()
+            st.session_state.model_loaded = True
+        
+        # 刷新页面以显示主界面
+        st.rerun()
 
 # ------------------------------------------
 # 侧边栏导航
@@ -114,26 +149,28 @@ def load_page_module(page_name: str):
 # ------------------------------------------
 # 主界面：内容区（按导航切换）
 # ------------------------------------------
-st.markdown('<div class="main-header">细粒度情感分析系统</div>', unsafe_allow_html=True)
-st.markdown('<div class="app-subtitle">面向中文文本的 6 类细粒度情感识别与可视化</div>', unsafe_allow_html=True)
-
-# 加载当前页面模块并渲染
-page_module = load_page_module(st.session_state.page)
-if page_module:
-    if hasattr(page_module, 'render_page'):
-        # 判断页面是否需要 handler 参数
-        import inspect
-        sig = inspect.signature(page_module.render_page)
-        params = list(sig.parameters.keys())
-        
-        if len(params) > 0:
-            # 需要 handler 参数的页面（单条分析、批量分析）
-            page_module.render_page(st.session_state.handler)
+# 只在模型加载完成后显示主界面
+if st.session_state.model_loaded:
+    st.markdown('<div class="main-header">细粒度情感分析系统</div>', unsafe_allow_html=True)
+    st.markdown('<div class="app-subtitle">面向中文文本的 6 类细粒度情感识别与可视化</div>', unsafe_allow_html=True)
+    
+    # 加载当前页面模块并渲染
+    page_module = load_page_module(st.session_state.page)
+    if page_module:
+        if hasattr(page_module, 'render_page'):
+            # 判断页面是否需要 handler 参数
+            import inspect
+            sig = inspect.signature(page_module.render_page)
+            params = list(sig.parameters.keys())
+            
+            if len(params) > 0:
+                # 需要 handler 参数的页面（单条分析、批量分析）
+                page_module.render_page(st.session_state.handler)
+            else:
+                # 不需要参数的页面（关于系统）
+                page_module.render_page()
         else:
-            # 不需要参数的页面（关于系统）
-            page_module.render_page()
-else:
-    st.error(f"页面 '{st.session_state.page}' 未找到")
+            st.error(f"页面 '{st.session_state.page}' 未找到")
 
 # ------------------------------------------
 # 页脚

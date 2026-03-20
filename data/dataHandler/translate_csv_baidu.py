@@ -1,3 +1,5 @@
+# 百度大模型(AIT)多线程翻译脚本：调用百度AI文本翻译接口，通过自定义Prompt优化情感与人名翻译，支持并发处理、智能限流重试及进度监控，将英文数据翻译为中文
+
 import pandas as pd
 import requests
 import random

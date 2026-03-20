@@ -1,3 +1,5 @@
+# CSV 多文件合并工具：自动扫描当前目录合法 CSV，校验列一致性，打乱各文件及整体顺序后合并为统一数据集
+
 import pandas as pd
 import os
 import glob
