@@ -1,20 +1,23 @@
 """
 统一调度（多模态）情感分析流水线
 
-当前实现：
-1) OCR 图片 -> 文本 -> BERT 推理 -> 情感结果
-2) 视频/音频链路：留出可插拔 ASR 回调接口，尚未接入时会抛出清晰异常
+支持输入：
+1) 图片：OCR -> 文本 -> `EmotionModelHandler.predict()` -> 情感
+2) 音频：ASR -> 文本 -> `EmotionModelHandler.predict()` -> 情感
+3) 视频：视频提取音频 -> ASR -> 文本 -> `EmotionModelHandler.predict()` -> 情感
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, BinaryIO, Callable, Optional, Union, overload
+from typing import Any, BinaryIO, Callable, Optional, Union
 
 from .model_handler import EmotionModelHandler
 from .utils.ocr_processor import extract_text_from_image
+from .utils.asr_processor import audio_to_text
 
 ImageInput = Union[str, Path, bytes, BinaryIO]
+AudioInput = Union[str, Path, bytes, BinaryIO]
 AsrFunc = Callable[[str], str]  # asr_func(audio_path: str) -> transcript
 
 
@@ -28,12 +31,7 @@ def ocr_image_to_emotion(
     timeout: float | None = None,
     config_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """
-    图片 -> OCR -> 文本 -> 细粒度情感推理（BERT）
-
-    Returns:
-        dict: 包含 source/input_text + EmotionModelHandler.predict() 的字段
-    """
+    """图片 -> OCR -> 文本 -> 情感推理"""
     text = extract_text_from_image(
         image,
         provider=provider,
@@ -47,31 +45,48 @@ def ocr_image_to_emotion(
         raise ValueError("OCR 未识别到有效文本（空文本）。")
 
     emotion_result = handler.predict(text)
-    return {"source": "ocr", "input_text": text, **emotion_result}
+    return {"source": "image_ocr", "input_text": text, **emotion_result}
+
+
+def audio_to_emotion(
+    handler: EmotionModelHandler,
+    audio: AudioInput,
+    *,
+    input_suffix_hint: str | None = None,
+    config_path: str | Path | None = None,
+    keep_temp: bool = False,
+) -> dict[str, Any]:
+    """音频 -> ASR -> 文本 -> 情感推理"""
+    transcript = audio_to_text(
+        audio,
+        input_suffix_hint=input_suffix_hint,
+        config_path=config_path,
+        keep_temp=keep_temp,
+    )
+    transcript = (transcript or "").strip()
+    if not transcript:
+        raise ValueError("ASR 未返回有效文本（空文本）。")
+
+    emotion_result = handler.predict(transcript)
+    return {"source": "audio_asr", "input_text": transcript, **emotion_result}
 
 
 def video_to_emotion(
     handler: EmotionModelHandler,
     video_path: str | Path,
     *,
-    asr_func: AsrFunc | None = None,
+    asr_config_path: str | Path | None = None,
+    asr_keep_temp: bool = False,
     cleanup_audio: bool = True,
 ) -> dict[str, Any]:
-    """
-    视频 -> 音频 -> ASR -> 文本 -> 情感推理
-
-    注意：
-    - 本项目的 ASR 目前未实现，因此需要你传入可工作的 `asr_func`
-      或先补齐 `src/utils/asr_processor.py`。
-    """
-    # 延迟导入：避免在只使用 OCR 时强依赖 moviepy/ffmpeg
+    """视频 -> 音频提取 -> ASR -> 文本 -> 情感推理"""
+    # 延迟导入：避免只跑 OCR 时就强依赖 moviepy/ffmpeg
     from .utils.video_processor import video_to_transcript
 
-    if asr_func is None:
-        from .utils.asr_processor import transcribe_audio
-
+    asr_func: AsrFunc | None = None
+    if asr_config_path is not None or asr_keep_temp:
         def asr_func(audio_path: str) -> str:
-            return transcribe_audio(audio_path)
+            return audio_to_text(audio_path, config_path=asr_config_path, keep_temp=asr_keep_temp)
 
     transcript = video_to_transcript(
         str(video_path),
@@ -83,42 +98,49 @@ def video_to_emotion(
         raise ValueError("ASR 未返回有效文本（空文本）。")
 
     emotion_result = handler.predict(transcript)
-    return {"source": "video", "input_text": transcript, **emotion_result}
+    return {"source": "video_asr", "input_text": transcript, **emotion_result}
 
 
 def multimodal_emotion_predict(
     handler: EmotionModelHandler,
     *,
     image: ImageInput | None = None,
+    audio: AudioInput | None = None,
     video_path: str | Path | None = None,
-    asr_func: AsrFunc | None = None,
+    # OCR 参数
     ocr_kwargs: Optional[dict[str, Any]] = None,
-    video_kwargs: Optional[dict[str, Any]] = None,
+    # ASR 参数（audio 的 config_path/keep_temp；video 的 asr_config_path/asr_keep_temp）
+    asr_kwargs: Optional[dict[str, Any]] = None,
+    cleanup_audio: bool = True,
 ) -> dict[str, Any]:
     """
-    统一入口：
-    - 提供 `image`：走 OCR -> BERT
-    - 提供 `video_path`：走 视频 -> ASR -> BERT
+    统一入口：只能提供以下三者之一
+    - `image`
+    - `audio`
+    - `video_path`
     """
-    if (image is None) == (video_path is None):
-        raise ValueError("必须且只能提供一个输入：`image` 或 `video_path`。")
+    provided = [image is not None, audio is not None, video_path is not None]
+    if sum(1 for x in provided if x) != 1:
+        raise ValueError("必须且只能提供一个输入：`image` 或 `audio` 或 `video_path`。")
 
     ocr_kwargs = ocr_kwargs or {}
-    video_kwargs = video_kwargs or {}
+    asr_kwargs = asr_kwargs or {}
 
     if image is not None:
         return ocr_image_to_emotion(handler, image, **ocr_kwargs)
 
+    if audio is not None:
+        return audio_to_emotion(handler, audio, **asr_kwargs)
+
     # video
-    merged_video_kwargs = dict(video_kwargs)
-    if asr_func is not None:
-        merged_video_kwargs["asr_func"] = asr_func
-    return video_to_emotion(handler, video_path, **merged_video_kwargs)
+    return video_to_emotion(
+        handler,
+        video_path,
+        asr_config_path=asr_kwargs.get("config_path"),
+        asr_keep_temp=bool(asr_kwargs.get("keep_temp", False)),
+        cleanup_audio=cleanup_audio,
+    )
 
 
-__all__ = [
-    "ocr_image_to_emotion",
-    "video_to_emotion",
-    "multimodal_emotion_predict",
-]
+__all__ = ["ocr_image_to_emotion", "audio_to_emotion", "video_to_emotion", "multimodal_emotion_predict"]
 
