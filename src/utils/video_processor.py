@@ -100,28 +100,30 @@ def video_to_transcript(
     """
     将视频转换为文本：视频 -> 音频 -> ASR 得到文本。
 
-    由于你提到 `asr` 脚本暂时未实现，这里采用“可插拔”的方式：
-    - 你可以传入 `asr_func(audio_path) -> str` 来接入 ASR。
-    - 如果未传入 `asr_func`，则抛出清晰异常，提醒你当前链路需要 ASR 实现。
+    采用“可插拔”的方式接入 ASR：
+    - 你可以传入 `asr_func(audio_path) -> str` 来接入自定义 ASR。
+    - 如果未传入 `asr_func`，则默认调用 `src/utils/asr_processor.py` 的 `audio_to_text()`。
 
     :param video_path: 视频文件路径
-    :param asr_func: 回调函数，签名需为 asr_func(audio_path: str) -> str
+    :param asr_func: 回调函数，签名需为 `asr_func(audio_path: str) -> str`；缺省时用 `audio_to_text()`
     :param cleanup_audio: 若为 True，完成后删除临时音频文件
     :return: ASR 文本（字符串）
     """
     if asr_func is None:
-        raise NotImplementedError(
-            "当前 `asr` 尚未实现。请在调用 `video_to_transcript` 时提供 `asr_func(audio_path)->str`，"
-            "或先实现对应 ASR 接口后再接入。"
-        )
+        # 默认接入项目自带 ASR 实现
+        from .asr_processor import audio_to_text
+
+        def asr_func(audio_path: str) -> str:
+            # `audio_to_text` 内部会做 chunk + 清理；这里我们只关注接口输出
+            return audio_to_text(audio_path)
 
     audio_path = None
     try:
         # 始终使用临时文件：由 tempfile 生成 wav，并在 finally 里按 cleanup_audio 规则删除
         audio_path = extract_audio_from_video(video_path, audio_output_path=None)
         transcript = asr_func(audio_path)
-        if transcript is None:
-            raise ValueError("ASR 返回了 None（期望返回文本字符串）。")
+        if transcript is None or not str(transcript).strip():
+            raise ValueError("ASR 返回了空文本（期望返回非空文本字符串）。")
         return transcript
     finally:
         if cleanup_audio and audio_path and os.path.exists(audio_path):
@@ -131,6 +133,7 @@ def video_to_transcript(
 def video_to_emotion(
     video_path: str,
     asr_func=None,
+    handler=None,
     emotion_infer_func=None,
     cleanup_audio: bool = True,
 ):
@@ -141,7 +144,8 @@ def video_to_emotion(
 
     :param video_path: 视频文件路径
     :param asr_func: 回调函数，签名 asr_func(audio_path)->str
-    :param emotion_infer_func: 回调函数，签名 emotion_infer_func(text)->情感结果
+    :param handler: 情感推理模型（`EmotionModelHandler`），若提供且 `emotion_infer_func` 为空，则直接 `handler.predict(transcript)`
+    :param emotion_infer_func: 回调函数，签名 emotion_infer_func(text)->情感结果（优先级高于 handler）
     :param cleanup_audio: 是否清理临时音频
     :return: emotion_infer_func(transcript) 的结果；若未提供 emotion_infer_func，则返回 transcript
     """
@@ -151,6 +155,9 @@ def video_to_emotion(
         cleanup_audio=cleanup_audio,
     )
     if emotion_infer_func is None:
+        if handler is not None:
+            # defer: avoid importing EmotionModelHandler at module import time
+            return handler.predict(transcript)
         return transcript
     return emotion_infer_func(transcript)
 
