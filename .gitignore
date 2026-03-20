@@ -4,4 +4,4 @@ __pycache__/
 *$py.class
 config/ocr_secrets.toml
 config/asr_secrets.toml
-model/
+models/
