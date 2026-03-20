@@ -37,6 +37,8 @@ from .emotion_utils import (
 
 from .ocr_processor import extract_text_from_image, OcrError
 
+from .asr_processor import audio_to_text, AsrError
+
 __all__ = [
     # 文件 I/O
     'load_css',
@@ -65,4 +67,8 @@ __all__ = [
     # OCR
     'extract_text_from_image',
     'OcrError',
+
+    # ASR
+    'audio_to_text',
+    'AsrError',
 ]
