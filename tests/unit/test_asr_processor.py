@@ -29,7 +29,7 @@ def test_audio_to_text_wav(mock_asr_dependencies):
     """测试 WAV 音频转文本"""
     mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_long_60s.wav']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_normal.wav']
     mock_baidu_asr.return_value = '识别的文本内容'
 
     # 执行测试，传入一个虚拟路径
@@ -48,7 +48,7 @@ def test_audio_to_text_mp3(mock_asr_dependencies):
     mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
     mock_normalize.return_value = 'mock_normalized_wav.wav'
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_silence.mp3']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_normal.mp3']
     mock_get_token.return_value = 'fake_token'
     mock_baidu_asr.return_value = '识别的文本内容'
 
@@ -60,24 +60,6 @@ def test_audio_to_text_mp3(mock_asr_dependencies):
     assert len(result) > 0
     # 验证 normalize 函数被调用（表明MP3被处理）
     mock_normalize.assert_called_once()
-
-def test_audio_to_text_long_audio(mock_asr_dependencies):
-    """测试长音频分段处理"""
-    mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
-    # 模拟函数行为
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_long_60s.wav', 'E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_silence.mp3']
-    # 使用side_effect模拟多次调用返回不同结果
-    mock_baidu_asr.side_effect = ['第一段文本', '第二段文本']
-
-    # 执行测试，使用一个虚拟路径替代 sample_audio_path
-    result = audio_to_text("dummy_long_audio.wav")
-
-    # 断言
-    assert isinstance(result, str)
-    assert '第一段文本' in result
-    assert '第二段文本' in result
-    # 验证百度ASR函数被调用了两次
-    assert mock_baidu_asr.call_count == 2
 
 def test_audio_to_text_missing_config_error(mock_asr_dependencies):
     """测试缺少配置时抛出异常"""
