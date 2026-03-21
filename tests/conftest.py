@@ -66,4 +66,5 @@ def asr_config_path(root_dir):
 @pytest.fixture(scope="session")
 def sample_audio_path(root_dir):
     """提供一个用于测试的音频文件路径。"""
-    return root_dir / "tests" / "fixtures" / "sample_audio" / "test.wav"
+    # 人工收集的文件名为 test_normal.wav
+    return root_dir / "tests" / "fixtures" / "sample_audio" / "test_normal.wav"

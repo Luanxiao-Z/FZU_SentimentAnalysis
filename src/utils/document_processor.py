@@ -30,14 +30,21 @@ def process_document_to_sentences(file_content, file_type: str) -> pd.DataFrame:
     suffix_map = {'pdf': '.pdf', 'txt': '.txt', 'docx': '.docx', 'md': '.md'}
     suffix = suffix_map.get(file_type, '')
     
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        if isinstance(file_content, bytes):
+    # 处理不同类型的输入
+    if isinstance(file_content, bytes):
+        # 字节数据：直接写入临时文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(file_content)
-        else:
-            # 假设是文件对象
+            tmp_path = tmp.name
+    elif hasattr(file_content, 'seek'):
+        # 文件对象：重置指针并读取内容
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             file_content.seek(0)
             tmp.write(file_content.read())
-        tmp_path = tmp.name
+            tmp_path = tmp.name
+    else:
+        # Path对象或字符串路径：直接使用
+        tmp_path = str(file_content)
     
     try:
         # 提取文本

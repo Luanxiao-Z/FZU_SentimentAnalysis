@@ -10,7 +10,17 @@ from pathlib import Path
 from src.utils.asr_processor import audio_to_text, AsrError, AsrSettings
 
 @patch('src.utils.asr_processor._load_settings')
-def test_audio_to_text_wav(mock_load_settings, sample_audio_path):
+@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
+@patch('src.utils.asr_processor.segment_wav')
+@patch('src.utils.asr_processor._baidu_get_access_token')
+@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
+def test_audio_to_text_wav(
+    mock_baidu_asr, 
+    mock_get_token, 
+    mock_segment, 
+    mock_normalize, 
+    mock_load_settings,
+):
     """测试 WAV 音频转文本"""
     # 模拟加载设置
     mock_settings = AsrSettings(
@@ -25,20 +35,35 @@ def test_audio_to_text_wav(mock_load_settings, sample_audio_path):
     )
     mock_load_settings.return_value = mock_settings
 
-    # 模拟内部函数调用，直接返回已知存在的sample_audio_path的字符串形式
-    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path)]), \
-         patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', return_value='识别的文本内容'):
+    # 模拟函数行为
+    mock_normalize.return_value = 'mock_normalized_wav.wav'
+    mock_segment.return_value = ['mock_segmented_chunk1.wav']
+    mock_get_token.return_value = 'fake_token'
+    mock_baidu_asr.return_value = '识别的文本内容'
 
-        result = audio_to_text(sample_audio_path)
+    # 执行测试，传入一个虚拟路径
+    result = audio_to_text("dummy_path.wav")
 
-
-        assert isinstance(result, str)
-        assert len(result) > 0
+    # 断言
+    assert isinstance(result, str)
+    assert len(result) > 0
+    # 验证关键函数是否被调用
+    mock_normalize.assert_called_once()
+    mock_segment.assert_called_once()
+    mock_baidu_asr.assert_called_once()
 
 @patch('src.utils.asr_processor._load_settings')
-def test_audio_to_text_mp3(mock_load_settings, sample_audio_path):
+@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
+@patch('src.utils.asr_processor.segment_wav')
+@patch('src.utils.asr_processor._baidu_get_access_token')
+@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
+def test_audio_to_text_mp3(
+    mock_baidu_asr, 
+    mock_get_token, 
+    mock_segment, 
+    mock_normalize, 
+    mock_load_settings,
+):
     """测试 MP3 音频转文本"""
     # 模拟加载设置
     mock_settings = AsrSettings(
@@ -53,23 +78,33 @@ def test_audio_to_text_mp3(mock_load_settings, sample_audio_path):
     )
     mock_load_settings.return_value = mock_settings
 
-    # 模拟文件扩展名检查和转换
-    mp3_path = Path(str(sample_audio_path).replace('.wav', '.mp3'))
-    # 直接mock掉normalize_audio_to_wav_16k_mono，返回已知存在的sample_audio_path
-    with patch('pathlib.Path.suffix', new_callable=PropertyMock) as mock_suffix, \
-         patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path)]), \
-         patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', return_value='识别的文本内容'):
-        mock_suffix.return_value = '.mp3'
+    # 模拟函数行为
+    mock_normalize.return_value = 'mock_normalized_wav.wav'
+    mock_segment.return_value = ['mock_segmented_chunk1.wav']
+    mock_get_token.return_value = 'fake_token'
+    mock_baidu_asr.return_value = '识别的文本内容'
 
-        result = audio_to_text(mp3_path)
+    # 执行测试，传入一个MP3路径
+    result = audio_to_text("dummy_path.mp3")
 
-        assert isinstance(result, str)
-        assert len(result) > 0
+    # 断言
+    assert isinstance(result, str)
+    assert len(result) > 0
+    # 验证 normalize 函数被调用（表明MP3被处理）
+    mock_normalize.assert_called_once()
 
 @patch('src.utils.asr_processor._load_settings')
-def test_audio_to_text_long_audio(mock_load_settings, sample_audio_path):
+@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
+@patch('src.utils.asr_processor.segment_wav')
+@patch('src.utils.asr_processor._baidu_get_access_token')
+@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
+def test_audio_to_text_long_audio(
+    mock_baidu_asr, 
+    mock_get_token, 
+    mock_segment, 
+    mock_normalize, 
+    mock_load_settings,
+):
     """测试长音频分段处理"""
     # 模拟加载设置
     mock_settings = AsrSettings(
@@ -84,17 +119,22 @@ def test_audio_to_text_long_audio(mock_load_settings, sample_audio_path):
     )
     mock_load_settings.return_value = mock_settings
 
-    # 模拟长音频（例如60秒）被分割成多个片段
-    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path), str(sample_audio_path)]), \
-         patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', side_effect=['第一段文本', '第二段文本']):
+    # 模拟函数行为
+    mock_normalize.return_value = 'mock_normalized_wav.wav'
+    mock_segment.return_value = ['chunk1.wav', 'chunk2.wav']
+    mock_get_token.return_value = 'fake_token'
+    # 使用side_effect模拟多次调用返回不同结果
+    mock_baidu_asr.side_effect = ['第一段文本', '第二段文本']
 
-        result = audio_to_text(sample_audio_path)
+    # 执行测试
+    result = audio_to_text(sample_audio_path)
 
-        assert isinstance(result, str)
-        assert '第一段文本' in result
-        assert '第二段文本' in result
+    # 断言
+    assert isinstance(result, str)
+    assert '第一段文本' in result
+    assert '第二段文本' in result
+    # 验证百度ASR函数被调用了两次
+    assert mock_baidu_asr.call_count == 2
 
 @patch('src.utils.asr_processor._load_settings')
 def test_audio_to_text_missing_config_error(mock_load_settings):
