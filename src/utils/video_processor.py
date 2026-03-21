@@ -12,8 +12,25 @@ import shutil
 import subprocess
 from typing import Optional
 
-from moviepy.editor import VideoFileClip  # type: ignore
 import tempfile  # 用于处理临时文件
+
+
+def _resolve_video_file_clip():
+    """
+    兼容不同 moviepy 版本的导入路径。
+    - moviepy 1.x: from moviepy.editor import VideoFileClip
+    - moviepy 2.x: from moviepy import VideoFileClip
+    返回 None 表示当前环境未安装可用的 moviepy。
+    """
+    try:
+        from moviepy.editor import VideoFileClip  # type: ignore
+        return VideoFileClip
+    except Exception:
+        try:
+            from moviepy import VideoFileClip  # type: ignore
+            return VideoFileClip
+        except Exception:
+            return None
 
 
 def extract_audio_from_video(
@@ -34,6 +51,7 @@ def extract_audio_from_video(
         raise FileNotFoundError(f"视频文件不存在：{video_path}")
 
     created_audio = False
+    VideoFileClip = _resolve_video_file_clip()
     try:
         # 处理音频输出路径：如果未指定，创建临时文件（后缀为 .wav）
         if audio_output_path is None:
@@ -42,22 +60,24 @@ def extract_audio_from_video(
             temp_audio.close()  # 关闭临时文件，让后续操作写入
             created_audio = True
 
-        # 加载视频文件
-        video = VideoFileClip(video_path)
-        try:
-            if video.audio is None:
-                raise ValueError("该视频不包含音频轨道，无法提取。")
+        # 优先使用 moviepy（若可用）
+        if VideoFileClip is not None:
+            video = VideoFileClip(video_path)
+            try:
+                if video.audio is None:
+                    raise ValueError("该视频不包含音频轨道，无法提取。")
 
-            # 提取音频并保存（优先使用 moviepy）
-            video.audio.write_audiofile(
-                audio_output_path,
-                codec=codec,
-                fps=sample_rate,
-            )
-        finally:
-            video.close()  # 关闭视频，释放资源
+                video.audio.write_audiofile(
+                    audio_output_path,
+                    codec=codec,
+                    fps=sample_rate,
+                )
+            finally:
+                video.close()  # 关闭视频，释放资源
+            return audio_output_path
 
-        return audio_output_path
+        # moviepy 不可用时，直接走 ffmpeg 分支
+        raise RuntimeError("moviepy 不可用，使用 ffmpeg 兜底")
     except Exception as e:
         # moviepy 提取失败时，尝试 ffmpeg 兜底（若环境具备 ffmpeg）
         try:

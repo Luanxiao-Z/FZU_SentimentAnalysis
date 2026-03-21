@@ -1,7 +1,10 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import os
 import shutil
 import tempfile
+import base64
+import uuid
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -66,6 +69,8 @@ def _preview_uploaded_file(f) -> None:
         except Exception:
             data = f
         st.audio(data, format=_guess_audio_format(name), start_time=0)
+        if isinstance(data, (bytes, bytearray)):
+            _render_audio_waveform(bytes(data), name)
         st.caption(f"{name}")
         return
     if _file_is_video(name):
@@ -94,6 +99,57 @@ def _guess_audio_format(name: str) -> str:
         if name.endswith(ext):
             return ext.replace(".", "")
     return "audio"
+
+
+def _guess_audio_mime(name: str) -> str:
+    name = (name or "").lower()
+    for ext, mime in [
+        (".mp3", "audio/mpeg"),
+        (".wav", "audio/wav"),
+        (".m4a", "audio/mp4"),
+        (".flac", "audio/flac"),
+        (".aac", "audio/aac"),
+        (".ogg", "audio/ogg"),
+    ]:
+        if name.endswith(ext):
+            return mime
+    return "audio/mpeg"
+
+
+def _render_audio_waveform(data: bytes, name: str) -> None:
+    """渲染音频波形预览组件。"""
+    if not data:
+        return
+
+    element_id = f"waveform-{uuid.uuid4().hex}"
+    b64_audio = base64.b64encode(data).decode("ascii")
+    audio_mime = _guess_audio_mime(name)
+
+    html = f"""
+    <div style="margin:6px 0 2px 0;">
+      <div id="{element_id}" style="width:100%;height:90px;"></div>
+    </div>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+    <script>
+      const container = document.getElementById("{element_id}");
+      if (container && !container.dataset.inited) {{
+        container.dataset.inited = "1";
+        const ws = WaveSurfer.create({{
+          container: container,
+          height: 90,
+          normalize: true,
+          barWidth: 2,
+          barGap: 1,
+          waveColor: "#9ca3af",
+          progressColor: "#10b981",
+          cursorColor: "#059669",
+          cursorWidth: 1
+        }});
+        ws.load("data:{audio_mime};base64,{b64_audio}");
+      }}
+    </script>
+    """
+    components.html(html, height=110)
 
 
 def _guess_video_format(name: str) -> str:
@@ -207,7 +263,7 @@ def _extract_text_from_uploaded_media(files: list) -> str:
                         from src.utils.video_processor import video_to_transcript
                     except Exception as e:
                         raise RuntimeError(
-                            "视频转写依赖缺失：请安装 `moviepy` 并确保系统可用 `ffmpeg`。"
+                            "视频转写模块加载失败：请检查项目依赖。"
                         ) from e
 
                     text = video_to_transcript(video_path, cleanup_audio=True)
@@ -377,6 +433,8 @@ def render_page(handler):
 
     if "multimodal_result_df" not in st.session_state:
         st.session_state.multimodal_result_df = None
+    if "multimodal_scroll_to_top" not in st.session_state:
+        st.session_state.multimodal_scroll_to_top = False
 
     if st.session_state.multimodal_result_df is None:
         _render_upload_interface(handler)
@@ -417,60 +475,88 @@ def _run_multimodal_analysis(handler, combined_text: str, max_sentences: int) ->
 
 
 def _render_upload_interface(handler):
+    st.markdown(
+        """
+        <div class='muted' style='margin-bottom:10px;'>
+        支持多格式文件上传并预览：图片直接渲染，音频/视频使用播放器；文档（PDF/TXT/DOCX/MD）可直接提取文本。
+        图片/音频/视频也会自动走 OCR/ASR/转写生成文本用于情感分析。
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # 外层整页卡片框线：复用批量页的 CSS 选择器
     with st.container(border=True):
         st.markdown('<div class="batch-uploader-wrap">', unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <div class='muted' style='margin-bottom:10px;'>
-            支持多格式文件上传并预览：图片直接渲染，音频/视频使用播放器；文档（PDF/TXT/DOCX/MD）可直接提取文本。
-            图片/音频/视频也会自动走 OCR/ASR/转写生成文本用于情感分析。
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        left_col, right_col = st.columns([1.1, 0.9], gap="large")
 
-        uploaded_files = st.file_uploader(
-            "上传多媒体文件（多模态支持：图片/音频/视频/文档）",
-            type=["png", "jpg", "jpeg", "webp", "mp3", "wav", "m4a", "mp4", "webm", "pdf", "txt", "docx", "md"],
-            accept_multiple_files=True,
-            label_visibility="collapsed",
-        )
+        with left_col:
+            uploaded_files = st.file_uploader(
+                "上传多媒体文件（多模态支持：图片/音频/视频/文档）",
+                type=["png", "jpg", "jpeg", "webp", "mp3", "wav", "m4a", "mp4", "webm", "pdf", "txt", "docx", "md"],
+                accept_multiple_files=True,
+                label_visibility="collapsed",
+            )
 
-        # 文件大小限制（截图要求：建议 <20MB）
-        valid_files = []
-        if uploaded_files:
-            for f in uploaded_files:
-                size_bytes = _get_size_bytes(f)
-                if size_bytes and size_bytes > MAX_FILE_MB * 1024 * 1024:
-                    st.error(f"文件过大（>{MAX_FILE_MB}MB）：{getattr(f, 'name', 'unknown')}，请换小的文件。")
-                    continue
-                valid_files.append(f)
+            # 文件大小限制（截图要求：建议 <20MB）
+            valid_files = []
+            if uploaded_files:
+                for f in uploaded_files:
+                    size_bytes = _get_size_bytes(f)
+                    if size_bytes and size_bytes > MAX_FILE_MB * 1024 * 1024:
+                        st.error(f"文件过大（>{MAX_FILE_MB}MB）：{getattr(f, 'name', 'unknown')}，请换小的文件。")
+                        continue
+                    valid_files.append(f)
 
-        if valid_files:
+            st.markdown("<div class='batch-block-title'>用于情感分析的文本</div>", unsafe_allow_html=True)
+            # 上传后即自动抽取文本（文档 + 图片OCR + 音频/视频ASR），并缓存避免重复耗时
+            files_fingerprint = tuple(
+                (str(getattr(f, "name", "")), int(_get_size_bytes(f)))
+                for f in valid_files
+            )
+            cached_fingerprint = st.session_state.get("multimodal_upload_fingerprint")
+
+            if valid_files and files_fingerprint != cached_fingerprint:
+                with st.spinner("正在从上传文件提取文本（文档/OCR/ASR）..."):
+                    docs_text = _extract_text_from_uploaded_docs(valid_files)
+                    media_text = _extract_text_from_uploaded_media(valid_files)
+                    parts = [p.strip() for p in [docs_text, media_text] if p and p.strip()]
+                    auto_text = "\n\n".join(parts)
+
+                st.session_state.multimodal_upload_fingerprint = files_fingerprint
+                st.session_state.multimodal_override_text = auto_text
+            elif not valid_files:
+                st.session_state.multimodal_upload_fingerprint = None
+                st.session_state.multimodal_override_text = ""
+
+            st.text_area(
+                "（可选）自动填充上传文件提取文本；如需修改可在此处覆盖。",
+                key="multimodal_override_text",
+                height=200,
+                label_visibility="collapsed",
+            )
+
+        with right_col:
             st.markdown("<div class='batch-block-title'>文件预览</div>", unsafe_allow_html=True)
-            preview_cols = st.columns([1, 1], gap="large")
-
-            # 预览布局：最多展示前 4 个文件，避免页面太长
-            max_preview = min(len(valid_files), 4)
-            for i in range(max_preview):
-                c = preview_cols[i % 2]
-                with c:
-                    _preview_uploaded_file(valid_files[i])
-
-        st.markdown("<div class='batch-block-title'>用于情感分析的文本</div>", unsafe_allow_html=True)
-
-        auto_text = ""
-        if valid_files:
-            auto_text = _extract_text_from_uploaded_docs(valid_files)
-
-        override_text = st.text_area(
-            "（可选）自动填充文档提取文本；如需修改可在此处覆盖。",
-            value=auto_text,
-            height=200,
-            label_visibility="collapsed",
-        )
+            # 固定预览区高度，内容超出时在该区域内滚动
+            with st.container(height=420, border=True):
+                if valid_files:
+                    # 单列预览：避免上传少量文件时出现大块空白
+                    for f in valid_files:
+                        _preview_uploaded_file(f)
+                else:
+                    st.info("尚未上传文件。上传后将在这里显示图片/音频/视频/文档预览。")
+                    st.markdown(
+                        """
+                        <div style="line-height:1.8;">
+                            <div><strong>预览占位区</strong></div>
+                            <div>支持格式：PNG / JPG / WEBP / MP3 / WAV / M4A / MP4 / WEBM / PDF / TXT / DOCX / MD</div>
+                            <div>上传后可直接预览内容，并自动提取文本用于情感分析。</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
         max_sentences = st.slider(
             "最多分析句子数（性能保护）",
@@ -486,14 +572,9 @@ def _render_upload_interface(handler):
 
         with action_right:
             if run_btn:
-                combined_text = (override_text or "").strip()
+                combined_text = str(st.session_state.get("multimodal_override_text", "") or "").strip()
 
                 with st.spinner("正在提取多模态文本并拆句进行情感分析..."):
-                    # 额外为图片/音频/视频自动抽取文本（不重复处理文档）
-                    media_text = _extract_text_from_uploaded_media(valid_files)
-                    if media_text.strip():
-                        combined_text = f"{combined_text}\n\n{media_text}".strip() if combined_text else media_text.strip()
-
                     if not combined_text:
                         st.warning("未提取到可分析文本。请上传文档，或上传可识别的图片/音频/视频。")
                         st.stop()
@@ -503,6 +584,7 @@ def _render_upload_interface(handler):
                         st.warning("分析结果为空，请检查输入文本。")
                         st.stop()
                     st.session_state.multimodal_result_df = result_df
+                    st.session_state.multimodal_scroll_to_top = True
                     st.rerun()
 
         st.markdown("</div>", unsafe_allow_html=True)
@@ -514,6 +596,18 @@ def _render_result_interface():
     if result_df is None or result_df.empty:
         st.warning("当前没有可展示的分析结果。")
         return
+
+    # 仅在“分析完成后首次进入结果页”时滚动到顶部
+    if st.session_state.get("multimodal_scroll_to_top", False):
+        components.html(
+            """
+            <script>
+            window.parent.scrollTo({ top: 0, behavior: "smooth" });
+            </script>
+            """,
+            height=0,
+        )
+        st.session_state.multimodal_scroll_to_top = False
 
     with st.container(border=True):
         st.markdown('<div class="batch-uploader-wrap">', unsafe_allow_html=True)
@@ -527,7 +621,7 @@ def _render_result_interface():
                 st.rerun()
 
         # 上半部分：左右两个饼图
-        col_fine, col_coarse = st.columns([1.25, 1.0], gap="large")
+        col_fine, col_coarse = st.columns([1, 1], gap="large")
         with col_fine:
             st.markdown("<div class='muted' style='margin-bottom:6px;'>细粒度情感分布</div>", unsafe_allow_html=True)
             fine_counts = result_df["fine_emotion"].value_counts()
@@ -538,7 +632,14 @@ def _render_result_interface():
                 color=fine_counts.index,
                 color_discrete_map={EMOTION_STYLES[i]["name"]: EMOTION_STYLES[i]["color"] for i in range(6)},
             )
-            fig_pie.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", margin=dict(l=20, r=20, t=30, b=20))
+            fig_pie.update_layout(
+                template="simple_white",
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                showlegend=False,
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=20),
+            )
             st.plotly_chart(fig_pie, use_container_width=True)
 
         with col_coarse:
@@ -551,7 +652,14 @@ def _render_result_interface():
                 color=coarse_counts.index,
                 color_discrete_map={"正面": "#2ecc71", "负面": "#e74c3c", "中性": "#95a5a6"},
             )
-            fig_coarse.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#ffffff", margin=dict(l=20, r=20, t=30, b=20))
+            fig_coarse.update_layout(
+                template="simple_white",
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#ffffff",
+                showlegend=False,
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=20),
+            )
             st.plotly_chart(fig_coarse, use_container_width=True)
 
         # 下半部分：平均概率雷达图 + 柱状图
