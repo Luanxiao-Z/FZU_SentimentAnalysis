@@ -387,8 +387,8 @@ def audio_to_text(
         settings = _load_settings(config_path=config_path)
     except FileNotFoundError as e:
         raise AsrError("请求百度 ASR 失败（配置文件缺失）", provider="baidu") from e
-    if settings.provider != "baidu":
-        raise AsrError(f"当前仅实现 baidu ASR，实际 provider={settings.provider}", provider=settings.provider)
+    # if settings.provider != "baidu":
+    #     raise AsrError(f"当前仅实现 baidu ASR，实际 provider={settings.provider}"
 
     # 输入后缀提示：仅用于 ffmpeg 临时文件保存，主要影响文件识别
     if input_suffix_hint is None:

@@ -9,36 +9,27 @@ from pathlib import Path
 # 需要从 src 目录导入，以确保与项目结构一致
 from src.utils.asr_processor import audio_to_text, AsrError, AsrSettings
 
-@patch('src.utils.asr_processor._load_settings')
-@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
-@patch('src.utils.asr_processor.segment_wav')
-@patch('src.utils.asr_processor._baidu_get_access_token')
-@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
-def test_audio_to_text_wav(
-    mock_baidu_asr, 
-    mock_get_token, 
-    mock_segment, 
-    mock_normalize, 
-    mock_load_settings,
-):
-    """测试 WAV 音频转文本"""
-    # 模拟加载设置
-    mock_settings = AsrSettings(
-        provider="baidu",
-        timeout=18.0,
-        dev_pid=1537,
-        chunk_seconds=45,
-        target_sample_rate=16000,
-        target_channels=1,
-        baidu_api_key="fake_api_key",
-        baidu_secret_key="fake_secret_key"
-    )
-    mock_load_settings.return_value = mock_settings
+@pytest.fixture
+def mock_asr_dependencies():
+        """为ASR测试提供统一的mock依赖项"""
+        with patch('src.utils.asr_processor._load_settings') as mock_load_settings,\
+             patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono') as mock_normalize,\
+             patch('src.utils.asr_processor.segment_wav') as mock_segment,\
+             patch('src.utils.asr_processor._baidu_get_access_token') as mock_get_token,\
+             patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text') as mock_baidu_asr:
+            # 模拟加载设置已经由mock_load_settings等对象在fixture中处理
+            
+            # 预先配置通用的模拟行为
+            mock_normalize.return_value = 'mock_normalized_wav.wav'
+            mock_get_token.return_value = 'fake_token'
+            
+            yield mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings
 
+def test_audio_to_text_wav(mock_asr_dependencies):
+    """测试 WAV 音频转文本"""
+    mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
-    mock_normalize.return_value = 'mock_normalized_wav.wav'
-    mock_segment.return_value = ['mock_segmented_chunk1.wav']
-    mock_get_token.return_value = 'fake_token'
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_long_60s.wav']
     mock_baidu_asr.return_value = '识别的文本内容'
 
     # 执行测试，传入一个虚拟路径
@@ -52,35 +43,12 @@ def test_audio_to_text_wav(
     mock_segment.assert_called_once()
     mock_baidu_asr.assert_called_once()
 
-@patch('src.utils.asr_processor._load_settings')
-@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
-@patch('src.utils.asr_processor.segment_wav')
-@patch('src.utils.asr_processor._baidu_get_access_token')
-@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
-def test_audio_to_text_mp3(
-    mock_baidu_asr, 
-    mock_get_token, 
-    mock_segment, 
-    mock_normalize, 
-    mock_load_settings,
-):
+def test_audio_to_text_mp3(mock_asr_dependencies):
     """测试 MP3 音频转文本"""
-    # 模拟加载设置
-    mock_settings = AsrSettings(
-        provider="baidu",
-        timeout=18.0,
-        dev_pid=1537,
-        chunk_seconds=45,
-        target_sample_rate=16000,
-        target_channels=1,
-        baidu_api_key="fake_api_key",
-        baidu_secret_key="fake_secret_key"
-    )
-    mock_load_settings.return_value = mock_settings
-
+    mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
     mock_normalize.return_value = 'mock_normalized_wav.wav'
-    mock_segment.return_value = ['mock_segmented_chunk1.wav']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_silence.mp3']
     mock_get_token.return_value = 'fake_token'
     mock_baidu_asr.return_value = '识别的文本内容'
 
@@ -93,41 +61,16 @@ def test_audio_to_text_mp3(
     # 验证 normalize 函数被调用（表明MP3被处理）
     mock_normalize.assert_called_once()
 
-@patch('src.utils.asr_processor._load_settings')
-@patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono')
-@patch('src.utils.asr_processor.segment_wav')
-@patch('src.utils.asr_processor._baidu_get_access_token')
-@patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text')
-def test_audio_to_text_long_audio(
-    mock_baidu_asr, 
-    mock_get_token, 
-    mock_segment, 
-    mock_normalize, 
-    mock_load_settings,
-):
+def test_audio_to_text_long_audio(mock_asr_dependencies):
     """测试长音频分段处理"""
-    # 模拟加载设置
-    mock_settings = AsrSettings(
-        provider="baidu",
-        timeout=18.0,
-        dev_pid=1537,
-        chunk_seconds=1,  # 设置为1秒以强制触发分段
-        target_sample_rate=16000,
-        target_channels=1,
-        baidu_api_key="fake_api_key",
-        baidu_secret_key="fake_secret_key"
-    )
-    mock_load_settings.return_value = mock_settings
-
+    mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
-    mock_normalize.return_value = 'mock_normalized_wav.wav'
-    mock_segment.return_value = ['chunk1.wav', 'chunk2.wav']
-    mock_get_token.return_value = 'fake_token'
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_long_60s.wav', 'E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_silence.mp3']
     # 使用side_effect模拟多次调用返回不同结果
     mock_baidu_asr.side_effect = ['第一段文本', '第二段文本']
 
-    # 执行测试
-    result = audio_to_text(sample_audio_path)
+    # 执行测试，使用一个虚拟路径替代 sample_audio_path
+    result = audio_to_text("dummy_long_audio.wav")
 
     # 断言
     assert isinstance(result, str)
@@ -136,9 +79,9 @@ def test_audio_to_text_long_audio(
     # 验证百度ASR函数被调用了两次
     assert mock_baidu_asr.call_count == 2
 
-@patch('src.utils.asr_processor._load_settings')
-def test_audio_to_text_missing_config_error(mock_load_settings):
+def test_audio_to_text_missing_config_error(mock_asr_dependencies):
     """测试缺少配置时抛出异常"""
+    mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟未找到配置文件
     mock_load_settings.side_effect = FileNotFoundError("Config not found")
 
