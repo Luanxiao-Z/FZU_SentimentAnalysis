@@ -90,7 +90,8 @@ class TestSingleTextAnalysis:
         ]
 
         for text in valid_texts:
-            assert validate_input_text(text) is True
+            is_valid, error_msg = validate_input_text(text)
+            assert is_valid, f"验证失败: {error_msg}"
 
     def test_input_validation_invalid(self):
         """测试输入验证（无效输入）"""
@@ -101,11 +102,8 @@ class TestSingleTextAnalysis:
         ]
 
         for text in invalid_inputs:
-            try:
-                validate_input_text(text)
-                assert False, f"应该抛出异常：{text}"
-            except (ValueError, TypeError):
-                pass  # 预期行为
+            is_valid, error_msg = validate_input_text(text)
+            assert not is_valid, f"无效输入{text}应被标记为无效，错误信息：{error_msg}"
 
     def test_result_format(self, loaded_model):
         """测试结果格式完整性"""

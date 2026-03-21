@@ -208,3 +208,30 @@ def extract_text_from_txt(file_path) -> str:
             continue
     
     raise Exception(f"无法读取 TXT 文件（尝试编码：{encodings}）：{str(last_error)}")
+
+
+def read_csv_file(file_path):
+    """
+    读取 CSV 文件
+    
+    Args:
+        file_path: CSV 文件路径
+        
+    Returns:
+        DataFrame
+    """
+    df, error = load_csv_with_encoding(file_path)
+    if error is not None:
+        raise Exception(f"读取 CSV 文件失败：{str(error)}")
+    return df
+
+
+def write_csv_file(df, file_path):
+    """
+    写入 CSV 文件
+    
+    Args:
+        df: DataFrame
+        file_path: 输出文件路径
+    """
+    df.to_csv(file_path, index=False, encoding='utf-8-sig')

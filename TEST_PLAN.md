@@ -87,7 +87,6 @@ FZU_SentimentAnalysis/
 │   │   └── test_multimodal_pipeline.py   # ⭐ 端到端测试（P0）
 │   ├── system/                     # 系统测试
 │   │   ├── __init__.py
-│   │   ├── test_web_interface.py    # Web 界面测试（P2）
 │   │   └── test_performance.py       # 性能测试（P2）
 │   └── fixtures/                   # 测试数据
 │       ├── sample_documents/       # 测试文档

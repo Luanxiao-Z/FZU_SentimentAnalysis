@@ -48,6 +48,8 @@ __all__ = [
     'extract_text_from_docx',
     'extract_text_from_md',
     'extract_text_from_txt',
+    'read_csv_file',
+    'write_csv_file',
     
     # 文本处理
     'split_chinese_sentences',

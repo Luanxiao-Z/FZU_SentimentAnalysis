@@ -4,7 +4,7 @@
 import pytest
 import time
 
-from utils import extract_text_from_image
+from src.utils.ocr_processor import extract_text_from_image
 
 
 class TestPerformance:

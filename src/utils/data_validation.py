@@ -66,3 +66,22 @@ def get_example_texts() -> list:
         ("悲伤示例", "听到这个坏消息，我心里非常难过。"),
         ("惊讶示例", "居然中了大奖，太意外了！"),
     ]
+
+
+def validate_input_text(text: str) -> tuple[bool, str]:
+    """
+    验证输入文本是否有效
+    
+    Args:
+        text: 输入文本
+        
+    Returns:
+        (bool, str): 是否有效和错误信息
+    """
+    if not text:
+        return False, "输入文本不能为空"
+    if not isinstance(text, str):
+        return False, "输入必须是字符串类型"
+    if len(text.strip()) == 0:
+        return False, "输入文本不能为空白字符"
+    return True, ""

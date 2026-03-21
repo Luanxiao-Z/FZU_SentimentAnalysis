@@ -67,7 +67,7 @@ class TestBatchAnalysis:
     def test_large_batch_processing(self, loaded_model, tmp_path):
         """测试大批量数据处理"""
         # 创建包含 100 条文本的 CSV
-        texts = [f"这是第{i}条测试文本"] * 100
+        texts = [f"这是第{str(i)}条测试文本" for i in range(100)]
         df = pd.DataFrame({'text': texts})
         csv_file = tmp_path / "large_batch.csv"
         df.to_csv(csv_file, index=False, encoding='utf-8')
