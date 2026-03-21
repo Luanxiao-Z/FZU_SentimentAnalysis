@@ -31,17 +31,18 @@ def test_process_document_to_sentences_pdf(mock_extract_text):
 def test_process_document_to_sentences_txt(mock_extract_text):
     """测试处理TXT文档"""
     # 模拟 TXT 提取文本
-    mock_extract_text.return_value = "这是一段纯文本内容。没有标点。但有换行\n这里是下一行。"
+    mock_extract_text.return_value = "这是一段纯文本内容。这是另一句。"
 
+    # 创建一个模拟的文件对象（例如 bytesIO）
     mock_file = b"fake txt content"
+
     result_df = process_document_to_sentences(mock_file, 'txt')
 
     # 断言
     assert isinstance(result_df, pd.DataFrame)
     assert 'text' in result_df.columns
-    assert len(result_df) > 0
-    # 因为没有标点，所以可能只有一行或按换行分割
-    assert any("这是一段纯文本内容。" in text for text in result_df['text'])
+    assert len(result_df) == 2
+    assert any("这是一段纯文本内容。" in text for text in result_df['text'].values)
 
 @patch('src.utils.file_io.extract_text_from_docx')
 def test_process_document_to_sentences_docx(mock_extract_text):

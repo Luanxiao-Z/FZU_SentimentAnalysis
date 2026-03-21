@@ -383,7 +383,10 @@ def audio_to_text(
     3) 逐段调用百度 VOP ASR
     4) 拼接文本并返回
     """
-    settings = _load_settings(config_path=config_path)
+    try:
+        settings = _load_settings(config_path=config_path)
+    except FileNotFoundError as e:
+        raise AsrError("请求百度 ASR 失败（配置文件缺失）", provider="baidu") from e
     if settings.provider != "baidu":
         raise AsrError(f"当前仅实现 baidu ASR，实际 provider={settings.provider}", provider=settings.provider)
 

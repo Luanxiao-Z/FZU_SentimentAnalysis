@@ -61,3 +61,9 @@ def ocr_config_path(root_dir):
 def asr_config_path(root_dir):
     """提供一个用于测试的ASR配置文件路径。"""
     return root_dir / "config" / "asr_secrets.example.toml"
+
+
+@pytest.fixture(scope="session")
+def sample_audio_path(root_dir):
+    """提供一个用于测试的音频文件路径。"""
+    return root_dir / "tests" / "fixtures" / "sample_audio" / "test.wav"

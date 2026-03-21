@@ -25,11 +25,11 @@ def test_audio_to_text_wav(mock_load_settings, sample_audio_path):
     )
     mock_load_settings.return_value = mock_settings
 
-    # 模拟内部函数调用
-    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=sample_audio_path), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[sample_audio_path]), \
+    # 模拟内部函数调用，直接返回已知存在的sample_audio_path的字符串形式
+    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
+         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path)]), \
          patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_vop_server_api', return_value='识别的文本内容'):
+         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', return_value='识别的文本内容'):
 
         result = audio_to_text(sample_audio_path)
 
@@ -55,11 +55,12 @@ def test_audio_to_text_mp3(mock_load_settings, sample_audio_path):
 
     # 模拟文件扩展名检查和转换
     mp3_path = Path(str(sample_audio_path).replace('.wav', '.mp3'))
+    # 直接mock掉normalize_audio_to_wav_16k_mono，返回已知存在的sample_audio_path
     with patch('pathlib.Path.suffix', new_callable=PropertyMock) as mock_suffix, \
-         patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=sample_audio_path), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[sample_audio_path]), \
+         patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
+         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path)]), \
          patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_vop_server_api', return_value='识别的文本内容'):
+         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', return_value='识别的文本内容'):
         mock_suffix.return_value = '.mp3'
 
         result = audio_to_text(mp3_path)
@@ -84,10 +85,10 @@ def test_audio_to_text_long_audio(mock_load_settings, sample_audio_path):
     mock_load_settings.return_value = mock_settings
 
     # 模拟长音频（例如60秒）被分割成多个片段
-    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=sample_audio_path), \
-         patch('src.utils.asr_processor.segment_wav', return_value=[sample_audio_path, sample_audio_path]), \
+    with patch('src.utils.asr_processor.normalize_audio_to_wav_16k_mono', return_value=str(sample_audio_path)), \
+         patch('src.utils.asr_processor.segment_wav', return_value=[str(sample_audio_path), str(sample_audio_path)]), \
          patch('src.utils.asr_processor._baidu_get_access_token', return_value='fake_token'), \
-         patch('src.utils.asr_processor._baidu_vop_server_api', side_effect=['第一段文本', '第二段文本']):
+         patch('src.utils.asr_processor._baidu_asr_wav_bytes_to_text', side_effect=['第一段文本', '第二段文本']):
 
         result = audio_to_text(sample_audio_path)
 
