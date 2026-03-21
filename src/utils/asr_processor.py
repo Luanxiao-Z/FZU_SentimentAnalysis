@@ -179,8 +179,14 @@ def normalize_audio_to_wav_16k_mono(
             "pcm_s16le",
             str(out_wav),
         ]
-        # stdout/stderr 不打印给控制台，避免污染 UI；出错再带错误信息抛出。
+        # 调试：打印将要执行的命令和当前工作目录
+        print(f"[DEBUG] 执行命令: {' '.join(cmd)}")
+        print(f"[DEBUG] 当前工作目录: {os.getcwd()}")
         r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # 调试：打印子进程的结果
+        print(f"[DEBUG] ffmpeg 返回码: {r.returncode}")
+        print(f"[DEBUG] 输出文件是否存在: {out_wav.exists()}")
+        print(f"[DEBUG] ffmpeg stderr: {r.stderr.decode('utf-8', errors='ignore')}")
         if r.returncode != 0 or not out_wav.exists():
             raise AsrError(
                 "音频标准化失败（ffmpeg 转换出错）。",
