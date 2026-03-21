@@ -63,6 +63,9 @@ class EmotionModelHandler:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("模型未加载，请先调用 load_model()")
         
+        if not text or not text.strip():
+            raise ValueError("输入文本不能为空或仅包含空白字符。")
+        
         # 编码
         inputs = self.tokenizer(
             text,
