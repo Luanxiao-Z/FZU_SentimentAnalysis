@@ -1,112 +1,30 @@
-# 【成员】： 102300403朱茜茜（ASR接口负责人）
-# 任务：
-# 1.申请百度/讯飞语音识别（ASR）API Key。
-# 2.实现音频文件处理逻辑，支持MP3/WAV格式。
-# 3.针对长音频，实现分段切片上传与结果拼接逻辑，确保长文本完整性。
-# 产出：
-# utils/asr_processor.py，支持音频输入，返回文本字符串。
-from __future__ import annotations
-
-import base64
+# -*- coding: utf-8 -*-
+"""
+ASR 处理器：将音频文件转换为文本
+"""
 import json
 import os
-import shutil
 import subprocess
-import time
+import shutil
 import uuid
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO, Iterable
+from typing import Any, BinaryIO
 
 import requests
+import base64
 
+# --- 全局配置与常量 ---
+_TOKEN_CACHE = {}
 
-class AsrError(RuntimeError):
-    """ASR 处理失败。"""
-
-    def __init__(self, message: str, *, provider: str | None = None, details: Any | None = None):
-        super().__init__(message)
-        self.provider = provider
-        self.details = details
-
-
-@dataclass(frozen=True)
-class AsrSettings:
-    provider: str = "baidu"
-    timeout: float = 18.0
-    dev_pid: int = 1537  # 普通话默认
-    chunk_seconds: int = 45  # 按长度分段，避免单次请求太长
-    # 百度 VOP server_api 常用音频约束：wav/pcm + 16k/单声道
-    target_sample_rate: int = 16000
-    target_channels: int = 1
-
-    baidu_api_key: str | None = None
-    baidu_secret_key: str | None = None
-
-
-_TOKEN_CACHE: dict[str, Any] = {"token": None, "expires_at": 0.0}
-
-
-def _default_config_path() -> Path:
-    # 约定：repo_root/config/asr_secrets.toml
-    repo_root = Path(__file__).resolve().parents[2]
-    return repo_root / "config" / "asr_secrets.toml"
-
-
-def _load_settings(*, config_path: str | Path | None) -> AsrSettings:
-    path = Path(config_path) if config_path is not None else _default_config_path()
-    if not path.exists():
+# --- 内部工具函数 ---
+def _ensure_ffmpeg_available() -> None:
+    """确保 ffmpeg 可用，否则抛出异常。"""
+    if shutil.which("ffmpeg") is None:
         raise AsrError(
-            "未找到 ASR 私密配置文件。请将 `config/asr_secrets.example.toml` 复制为 "
-            "`config/asr_secrets.toml` 并填写密钥。",
+            "系统缺少 `ffmpeg` 工具，无法进行音频处理。",
             provider=None,
-            details={"expected_path": str(path)},
+            details={"solution": "请安装 ffmpeg 并将其添加到系统 PATH 中。"},
         )
-
-    try:
-        import tomllib  # py3.11+
-
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except ModuleNotFoundError:
-        try:
-            import tomli  # type: ignore
-        except Exception as e:
-            raise AsrError(
-                "当前 Python 不支持 tomllib，且未安装 tomli。请执行：pip install tomli",
-                details=str(e),
-            ) from e
-
-        data = tomli.loads(path.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise AsrError("读取 ASR 配置失败（TOML 格式可能有误）。", details=str(e)) from e
-
-    asr_cfg = (data.get("asr") or {}) if isinstance(data, dict) else {}
-    baidu_cfg = (data.get("baidu_asr") or {}) if isinstance(data, dict) else {}
-
-    def _get_int(d: Any, k: str, default: int) -> int:
-        try:
-            return int(d.get(k, default))
-        except Exception:
-            return default
-
-    def _get_float(d: Any, k: str, default: float) -> float:
-        try:
-            return float(d.get(k, default))
-        except Exception:
-            return default
-
-    provider = str(asr_cfg.get("provider", "baidu")).strip().lower()
-    return AsrSettings(
-        provider=provider,
-        timeout=_get_float(asr_cfg, "timeout", 18.0),
-        dev_pid=_get_int(asr_cfg, "dev_pid", 1537),
-        chunk_seconds=_get_int(asr_cfg, "chunk_seconds", 45),
-        target_sample_rate=_get_int(asr_cfg, "target_sample_rate", 16000),
-        target_channels=_get_int(asr_cfg, "target_channels", 1),
-        baidu_api_key=str(baidu_cfg.get("api_key")).strip() if baidu_cfg.get("api_key") else None,
-        baidu_secret_key=str(baidu_cfg.get("secret_key")).strip() if baidu_cfg.get("secret_key") else None,
-    )
-
 
 def _read_input_bytes(audio: str | Path | bytes | BinaryIO) -> bytes:
     if isinstance(audio, (str, Path)):
@@ -124,15 +42,6 @@ def _read_input_bytes(audio: str | Path | bytes | BinaryIO) -> bytes:
         return bytes(data)
     raise AsrError("不支持的音频输入类型。")
 
-
-def _ensure_ffmpeg_available() -> None:
-    if shutil.which("ffmpeg") is None:
-        raise AsrError(
-            "系统中未找到 `ffmpeg`。请先安装并配置到环境变量（PATH）。",
-            provider=None,
-        )
-
-
 def _write_bytes_to_temp_file(tmp_dir: str | Path, data: bytes, suffix: str) -> Path:
     tmp_dir = Path(tmp_dir)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +50,39 @@ def _write_bytes_to_temp_file(tmp_dir: str | Path, data: bytes, suffix: str) -> 
     p.write_bytes(data)
     return p
 
+def _load_settings(config_path: str | Path | None = None) -> "AsrSettings":
+    """加载 ASR 配置，优先使用 config_path，其次使用默认路径。"""
+    from src.config import ASR_SECRETS_PATH
+
+    path_to_use = Path(config_path) if config_path else Path(ASR_SECRETS_PATH)
+    try:
+        with open(path_to_use, 'r', encoding='utf-8') as f:
+            raw = json.load(f)
+            return AsrSettings(**raw)
+    except FileNotFoundError as e:
+        raise e
+    except Exception as e:
+        raise AsrError(f"读取 ASR 配置文件失败: {e}", provider=None) from e
+
+# --- 核心功能函数 ---
+class AsrError(Exception):
+    def __init__(self, message: str, *, provider: str | None = None, details: Any = None):
+        super().__init__(message)
+        self.provider = provider
+        self.details = details
+
+class AsrSettings:
+    """
+    ASR 配置数据类
+    """
+    provider: str = "baidu"
+    baidu_api_key: str = ""
+    baidu_secret_key: str = ""
+    dev_pid: int = 1537
+    target_sample_rate: int = 16000
+    target_channels: int = 1
+    chunk_seconds: int = 30
+    timeout: float = 30.0
 
 def normalize_audio_to_wav_16k_mono(
     audio: str | Path | bytes | BinaryIO,
@@ -197,7 +139,6 @@ def normalize_audio_to_wav_16k_mono(
         final_tmp.close()
         final_path.write_bytes(out_wav.read_bytes())
         return str(final_path)
-
 
 def segment_wav(
     wav_path: str | Path,
@@ -264,7 +205,6 @@ def segment_wav(
             finally:
                 raise
 
-
 def _baidu_get_access_token(*, api_key: str, secret_key: str, timeout: float) -> str:
     now = time.time()
     cached = _TOKEN_CACHE.get("token")
@@ -298,7 +238,6 @@ def _baidu_get_access_token(*, api_key: str, secret_key: str, timeout: float) ->
     _TOKEN_CACHE["token"] = str(token)
     _TOKEN_CACHE["expires_at"] = now + max(0.0, expires_in)
     return str(token)
-
 
 def _baidu_asr_wav_bytes_to_text(
     *,
@@ -368,7 +307,6 @@ def _baidu_asr_wav_bytes_to_text(
     # 拼接 chunk 内结果
     return "".join(texts).strip()
 
-
 def audio_to_text(
     audio: str | Path | bytes | BinaryIO,
     *,
@@ -388,7 +326,7 @@ def audio_to_text(
     except FileNotFoundError as e:
         raise AsrError("请求百度 ASR 失败（配置文件缺失）", provider="baidu") from e
     # if settings.provider != "baidu":
-    #     raise AsrError(f"当前仅实现 baidu ASR，实际 provider={settings.provider}")
+    #     raise AsrError(f"当前仅实现 baidu ASR，实际 provider={settings.provider}"
 
     # 输入后缀提示：仅用于 ffmpeg 临时文件保存，主要影响文件识别
     if input_suffix_hint is None:
@@ -413,7 +351,6 @@ def audio_to_text(
 
         seg_texts: list[str] = []
         for cp in chunk_paths:
-            # 正常模式：读取文件并进行 ASR
             wav_bytes = Path(cp).read_bytes()
             seg_text = _baidu_asr_wav_bytes_to_text(
                 wav_bytes=wav_bytes,
@@ -452,6 +389,5 @@ def audio_to_text(
                         shutil.rmtree(d, ignore_errors=True)
                 except Exception:
                     pass
-
 
 __all__ = ["audio_to_text", "normalize_audio_to_wav_16k_mono", "segment_wav", "AsrError"]

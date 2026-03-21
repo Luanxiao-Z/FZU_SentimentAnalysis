@@ -29,7 +29,7 @@ def test_audio_to_text_wav(mock_asr_dependencies):
     """测试 WAV 音频转文本"""
     mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_long_60s.wav']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_long_60s.wav']
     mock_baidu_asr.return_value = '识别的文本内容'
 
     # 执行测试，传入一个虚拟路径
@@ -48,7 +48,7 @@ def test_audio_to_text_mp3(mock_asr_dependencies):
     mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
     mock_normalize.return_value = 'mock_normalized_wav.wav'
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_silence.mp3']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_silence.mp3']
     mock_get_token.return_value = 'fake_token'
     mock_baidu_asr.return_value = '识别的文本内容'
 
@@ -65,7 +65,7 @@ def test_audio_to_text_long_audio(mock_asr_dependencies):
     """测试长音频分段处理"""
     mock_baidu_asr, mock_get_token, mock_segment, mock_normalize, mock_load_settings = mock_asr_dependencies
     # 模拟函数行为
-    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_long_60s.wav', 'E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_silence.mp3']
+    mock_segment.return_value = ['E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_long_60s.wav', 'E:/智能系统综合设计/FZU_SentimentAnalysis/tests/fixtures/sample_audio/test_copy/test_silence.mp3']
     # 使用side_effect模拟多次调用返回不同结果
     mock_baidu_asr.side_effect = ['第一段文本', '第二段文本']
 
